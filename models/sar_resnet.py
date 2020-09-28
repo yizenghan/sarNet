@@ -2,12 +2,12 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from gumbel_softmax import GumbleSoftmax
+from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
-
 import torchvision.transforms as transforms
+from .op_counter import measure_model
 
-from op_counter import measure_model
+__all__ = ['sar_resnet']
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
@@ -316,8 +316,8 @@ class maskGen(nn.Module):
         )
         self.pool = nn.AdaptiveAvgPool2d((mask_size,mask_size))
         self.fc_gs = nn.Conv2d(groups*4,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = groups)
-        self.fc_gs.bias.data[:groups] = 1.0
-        self.fc_gs.bias.data[groups:] = 1.0      
+        self.fc_gs.bias.data[:groups] = 0.1
+        self.fc_gs.bias.data[groups:] = 5.0      
         self.gs = GumbleSoftmax()
 
     def forward(self, x, temperature=1.0):
@@ -623,6 +623,7 @@ def sar_resnet(depth, num_classes=1000, patch_groups=1, mask_size=7):
     model = sarResNet(block_base=Bottleneck, block_refine=Bottleneck_refine, layers=layers, 
                     num_classes=num_classes, patch_groups=patch_groups, mask_size=mask_size)
     return model
+
 
 def _extract_from_mask(x, mask):
     pad = nn.ConstantPad2d(padding=(1, 1, 1, 1), value=0.0)
