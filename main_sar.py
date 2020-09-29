@@ -1,5 +1,5 @@
-# import moxing as mox
-# mox.file.shift('os', 'mox')
+import moxing as mox
+mox.file.shift('os', 'mox')
 
 import os
 import argparse
@@ -32,20 +32,21 @@ import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 
+# mox.file.copy_parallel('sarNet/configs', '/cache/configs')
 
-# try:
-#     from apex import amp
-#     from apex.parallel import DistributedDataParallel as DDP
-#     from apex.parallel import convert_syncbn_model
-#     has_apex = True
-# except ImportError:
-#     mox.file.copy_parallel('apex-master/', '/cache/apex-master')
-#     os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" /cache/apex-master')
-#     from apex import amp
-#     from apex.parallel import DistributedDataParallel as DDP
-#     from apex.parallel import convert_syncbn_model
-#     has_apex = True
-#     print('successfully install apex')
+try:
+    from apex import amp
+    from apex.parallel import DistributedDataParallel as DDP
+    from apex.parallel import convert_syncbn_model
+    has_apex = True
+except ImportError:
+    mox.file.copy_parallel('sarNet/apex-master/', '/cache/apex-master')
+    os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" /cache/apex-master')
+    from apex import amp
+    from apex.parallel import DistributedDataParallel as DDP
+    from apex.parallel import convert_syncbn_model
+    has_apex = True
+    print('successfully install apex')
 
 parser = argparse.ArgumentParser(description='PyTorch Condensed Convolutional Networks')
 parser.add_argument('--config', help='train config file path')
@@ -257,6 +258,12 @@ def main_worker(gpu, ngpus_per_node, args):
         # load params
         model.load_state_dict(new_state_dict)
 
+    ### Define loss function (criterion) and optimizer
+    criterion = get_criterion(args).cuda(args.gpu)
+    optimizer = get_optimizer(args, model)
+    scheduler = get_scheduler(args)
+    
+
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
@@ -264,6 +271,8 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.gpu is not None:
             torch.cuda.set_device(args.gpu)
             model.cuda(args.gpu)
+            if args.use_amp:
+                model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
             # When using a single GPU per process and per
             # DistributedDataParallel, we need to divide the batch size
             # ourselves based on the total number of GPUs we have
@@ -272,22 +281,21 @@ def main_worker(gpu, ngpus_per_node, args):
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         else:
             model.cuda()
+            if args.use_amp:
+                model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
             # DistributedDataParallel will divide and allocate batch_size to all
             # available GPUs if device_ids are not set
             model = torch.nn.parallel.DistributedDataParallel(model)
     elif args.gpu is not None:
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
+        if args.use_amp:
+            model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
     else:
         # DataParallel will divide and allocate batch_size to all available GPUs
         model = torch.nn.DataParallel(model).cuda()
 
-    ### Define loss function (criterion) and optimizer
-    criterion = get_criterion(args).cuda(args.gpu)
-    optimizer = get_optimizer(args, model)
-    scheduler = get_scheduler(args)
-    if args.use_amp:
-        model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
+    
     # optionally resume from a checkpoint
     # args.gpu = None
     if args.resume:
