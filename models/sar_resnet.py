@@ -434,7 +434,8 @@ class sarModule(nn.Module):
             x_refine, _flops = self.refine_module[i].forward_calc_flops(x_refine, mask, inference=False) if i!=0 else self.refine_module[i].forward_calc_flops(x, mask, inference=False)
             flops += _flops
 
-        x_base = F.interpolate(x_base, x_refine.shape[2])
+        _,_,h,w = x_refine.shape
+        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear')
         out = self.relu(x_base + x_refine)
         out, _flops = self.fusion[0].forward_calc_flops(out)
         flops += _flops
