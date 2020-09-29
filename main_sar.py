@@ -10,6 +10,10 @@ warnings.filterwarnings("ignore")
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 import pandas as pd
 
+import sys
+# current_path = os.path.dirname('obs://d-cheap-net-shanghai/hanyz/sarNet/main_sar.py')
+# sys.path.append(current_path)
+
 import double_checked_models
 import models
 from utils import *
@@ -32,23 +36,13 @@ import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 
-# mox.file.copy_parallel('sarNet/configs', '/cache/configs')
+from apex import amp
+from apex.parallel import DistributedDataParallel as DDP
+from apex.parallel import convert_syncbn_model
+has_apex = True
+print('import amp success')
 
-try:
-    from apex import amp
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel import convert_syncbn_model
-    has_apex = True
-except ImportError:
-    mox.file.copy_parallel('sarNet/apex-master/', '/cache/apex-master')
-    os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" /cache/apex-master')
-    from apex import amp
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel import convert_syncbn_model
-    has_apex = True
-    print('successfully install apex')
-
-parser = argparse.ArgumentParser(description='PyTorch Condensed Convolutional Networks')
+parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
 parser.add_argument('--data_url', type=str, metavar='DIR', default='/data/dataset/CLS-LOC/',
                     help='path to dataset')
@@ -206,6 +200,10 @@ def main_worker(gpu, ngpus_per_node, args):
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
     print('Hyper-parameters:', str(args))
+
+    with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
+        f.write(str(args))
+
     # assert(0==1)
     if args.gpu is not None:
         print("Use GPU: {} for training".format(args.gpu))
@@ -500,6 +498,8 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         
         act_rate = 0.0
         loss_act_rate = 0.0
+        # print(len(_masks))
+        # assert(0==1)
         for act in _masks:
             act_rate += torch.mean(act)
             loss_act_rate += torch.pow(target_rate-torch.mean(act), 2)
