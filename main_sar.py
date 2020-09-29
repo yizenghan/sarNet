@@ -41,6 +41,7 @@ from apex.parallel import DistributedDataParallel as DDP
 from apex.parallel import convert_syncbn_model
 has_apex = True
 # print('import amp success')
+amp.register_float_function(torch, 'sigmoid')
 
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
@@ -600,7 +601,7 @@ def validate(val_loader, model, criterion, args, target_rate):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if i % args.10 == 0:
+            if i % 10 == 0:
                 progress.display(i)
 
     print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
