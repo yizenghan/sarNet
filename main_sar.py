@@ -40,7 +40,7 @@ from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 from apex.parallel import convert_syncbn_model
 has_apex = True
-print('import amp success')
+# print('import amp success')
 
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
@@ -379,7 +379,7 @@ def main_worker(gpu, ngpus_per_node, args):
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
             val_acc1, val_acc5, val_loss = validate(val_loader, model, criterion, args, target_rate)
-
+            # assert(0==1)
             ### Remember best Acc@1 and save checkpoint
             is_best = val_acc1 > best_acc1
             if is_best:

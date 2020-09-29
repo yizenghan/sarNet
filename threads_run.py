@@ -9,20 +9,7 @@ import warnings
 warnings.filterwarnings("ignore")
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 
-# import tmp
-# import main_sar
 
-# mox.file.copy('sarNet/main_sar.py', '/cache/main_sar.py')
-
-# mox.file.copy_parallel('sarNet/double_checked_models/', '/cache/double_checked_models')
-# mox.file.copy_parallel('sarNet/models/', '/cache/models')
-# mox.file.copy('sarNet/optimizer.py', '/cache/optimizer.py')
-# mox.file.copy('sarNet/criterion.py', '/cache/criterion.py')
-# mox.file.copy('sarNet/transform.py', '/cache/transform.py')
-# mox.file.copy('sarNet/scheduler.py', '/cache/scheduler.py')
-# mox.file.copy('sarNet/hyperparams.py', '/cache/hyperparams.py')
-# mox.file.copy('sarNet/config.py', '/cache/config.py')
-# mox.file.copy('sarNet/utils.py', '/cache/utils.py')
 
 try:
     from apex import amp

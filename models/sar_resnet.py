@@ -414,7 +414,8 @@ class sarModule(nn.Module):
         
         # print((x_refine-x_refine_2).abs().sum())
         # assert(0==1)
-        x_base = F.interpolate(x_base, x_refine.shape[2])
+        _,_,h,w = x_refine.shape
+        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear')
         out = self.relu(x_base + x_refine)
         # print(out.shape)
         out = self.fusion[0](out)
