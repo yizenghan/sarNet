@@ -33,19 +33,19 @@ import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 
 
-try:
-    from apex import amp
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel import convert_syncbn_model
-    has_apex = True
-except ImportError:
-    mox.file.copy_parallel('obs://d-cheap-net-shanghai/hanyz/apex-master/', '/cache/apex-master')
-    os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" /cache/apex-master')
-    from apex import amp
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel import convert_syncbn_model
-    has_apex = True
-    print('successfully install apex')
+# try:
+#     from apex import amp
+#     from apex.parallel import DistributedDataParallel as DDP
+#     from apex.parallel import convert_syncbn_model
+#     has_apex = True
+# except ImportError:
+#     mox.file.copy_parallel('apex-master/', '/cache/apex-master')
+#     os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" /cache/apex-master')
+#     from apex import amp
+#     from apex.parallel import DistributedDataParallel as DDP
+#     from apex.parallel import convert_syncbn_model
+#     has_apex = True
+#     print('successfully install apex')
 
 parser = argparse.ArgumentParser(description='PyTorch Condensed Convolutional Networks')
 parser.add_argument('--config', help='train config file path')

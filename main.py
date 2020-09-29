@@ -1,13 +1,13 @@
 import os
-# os.environ["MOX_SILENT_MODE"] = "1"
-# import moxing as mox
-# mox.file.shift('os', 'mox')
-# os.system('pip install yacs')
-# try:
-#     import yacs
-# except Exception:
-#     mox.file.copy_parallel('obs://d-cheap-net-shanghai/module/yacs-master/', '/cache/yacs-master')
-#     os.system('pip --default-timeout=100 install -v --no-cache-dir /cache/yacs-master')
+os.environ["MOX_SILENT_MODE"] = "1"
+import moxing as mox
+mox.file.shift('os', 'mox')
+os.system('pip install yacs')
+try:
+    import yacs
+except Exception:
+    mox.file.copy_parallel('obs://d-cheap-net-shanghai/module/yacs-master/', '/cache/yacs-master')
+    os.system('pip --default-timeout=100 install -v --no-cache-dir /cache/yacs-master')
 import argparse
 import time
 import random
