@@ -32,7 +32,13 @@ parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/test
                     help='path to save result and checkpoint (default: results/savedir)')
 parser.add_argument('--init_method', type=str, default='',
                     help='an argument needed in huawei cloud, but i do not know its usage')
+parser.add_argument('--patch_groups', type=int, default=1,
+                    help='an argument needed in huawei cloud, but i do not know its usage')
+parser.add_argument('--use_ls', type=int, default=0,
+                    help='an argument needed in huawei cloud, but i do not know its usage')
 args = parser.parse_args()
+
+args.use_ls = True if args.use_ls > 0 else False
 
 def multi_thread_run(config='_sarResNet50_g1_blConfig', 
                     train_url_base='', 
@@ -119,11 +125,15 @@ class myThread(threading.Thread):
 
 # gpu = ['0,1,2,3', '4,5,6,7']
 
+config = f'_sarResNet50_g{args.patch_groups}_blConfig'
+if args.use_ls:
+    config += '_ls'
+
 t1 = myThread(threadID=1,
-                config='_sarResNet50_g1_blConfig', 
+                config=config, 
                 train_url_base=args.train_url, 
                 data_url=args.data_url,
-                dist_url=f'tcp://127.0.0.1:30077',
+                dist_url=f'tcp://127.0.0.1:30076',
                 lambda_act=1.0,
                 t0=0.5,
                 target_rate=0.5,
@@ -134,10 +144,10 @@ t1 = myThread(threadID=1,
 t1.start()
 
 t2 = myThread(threadID=2,
-                config='_sarResNet50_g1_blConfig', 
+                config=config, 
                 train_url_base=args.train_url, 
                 data_url=args.data_url,
-                dist_url=f'tcp://127.0.0.1:30078',
+                dist_url=f'tcp://127.0.0.1:30075',
                 lambda_act=1.0,
                 t0=0.5,
                 target_rate=0.7,

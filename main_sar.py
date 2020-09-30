@@ -518,10 +518,11 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
         ### Compute gradient and do SGD step
         optimizer.zero_grad()
-        # loss.backward()
         if args.use_amp:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
+        else:
+            loss.backward()
         optimizer.step()
 
         ### Measure elapsed time
