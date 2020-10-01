@@ -40,7 +40,6 @@ from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 from apex.parallel import convert_syncbn_model
 has_apex = True
-# print('import amp success')
 amp.register_float_function(torch, 'sigmoid')
 
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
@@ -202,8 +201,9 @@ def main_worker(gpu, ngpus_per_node, args):
     args = get_hyperparams(args, test_code=args.test_code)
     print('Hyper-parameters:', str(args))
 
-    with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
-        f.write(str(args))
+    if args.train_on_cloud:
+        with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
+            f.write(str(args))
 
     # assert(0==1)
     if args.gpu is not None:
