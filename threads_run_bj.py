@@ -65,10 +65,11 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
                     target_rate=0.5,
                     optimize_rate_begin_epoch=55,
                     use_amp=1,
+                    use_ls=1,
                     test_code=0,
                     gpu='0,1,2,3'):
     ta_str = str(target_rate)
-    ls = 1 if args.use_ls else 0
+    ls = 1 if use_ls else 0
     train_url = f'{train_url_base}g{patch_groups}_target{ta_str[-1]}_ls{ls}_amp{use_amp}/'
     cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
             --train_url {train_url} \
@@ -97,6 +98,7 @@ class myThread(threading.Thread):
                 target_rate=0.5,
                 optimize_rate_begin_epoch=55,
                 use_amp=1,
+                use_ls=1,
                 test_code=0,
                 gpu='0,1,2,3'):
         threading.Thread.__init__(self)
@@ -113,6 +115,7 @@ class myThread(threading.Thread):
         self.use_amp = use_amp
         self.test_code = test_code
         self.gpu = gpu
+        self.use_ls = use_ls
 
     def run(self):
         print ("start" + str(self.threadID))
@@ -126,6 +129,7 @@ class myThread(threading.Thread):
                 target_rate=self.target_rate,
                 optimize_rate_begin_epoch=self.optimize_rate_begin_epoch,
                 use_amp=self.use_amp,
+                use_ls=self.use_ls,
                 test_code=self.test_code,
                 gpu=self.gpu)
         os.system(cmd)
@@ -164,6 +168,7 @@ t1 = myThread(threadID=1,
                 target_rate=args.target_rate1,
                 optimize_rate_begin_epoch=55,
                 use_amp=args.use_amp1,
+                use_ls = args.use_ls1,
                 test_code=0,
                 gpu='0,1,2,3')
 t1.start()
@@ -179,6 +184,7 @@ t2 = myThread(threadID=2,
                 target_rate=args.target_rate2,
                 optimize_rate_begin_epoch=55,
                 use_amp=args.use_amp2,
+                use_ls = args.use_ls2,
                 test_code=0,
                 gpu='4,5,6,7')
 t2.start()
