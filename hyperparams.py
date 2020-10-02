@@ -343,6 +343,7 @@ def get_hyperparams(args, test_code=0):
             args.mixup = 0.0
 
             return args
+
         elif args.hyperparams_set_index == 333: # sarResNet, use label smooth
             args.epochs = 110
             args.start_eval_epoch = 0
@@ -364,6 +365,31 @@ def get_hyperparams(args, test_code=0):
             args.scheduler = 'cosine'
             args.warmup_epoch = 0
             args.warmup_lr = 0
+            ### Mixup
+            args.mixup = 0.0
+            return args
+        
+        elif args.hyperparams_set_index == 233: # sarResNet, use label smooth
+            args.epochs = 110
+            args.start_eval_epoch = 0
+            args.batch_size = 256*4
+            ### data transform
+            args.autoaugment = False
+            args.colorjitter = True
+            args.change_light = True
+            ### optimizer
+            args.optimizer = 'SGD'
+            args.lr = 0.1 * (args.batch_size // 256)
+            args.momentum = 0.9
+            args.weigh_decay_apply_on_all = True  # TODO: weight decay apply on which params
+            args.weight_decay = 1e-4
+            args.nesterov = True
+            ### criterion
+            args.labelsmooth = 0.1
+            ### lr scheduler
+            args.scheduler = 'cosine'
+            args.warmup_epoch = 5
+            args.warmup_lr = 0.1
             ### Mixup
             args.mixup = 0.0
             return args

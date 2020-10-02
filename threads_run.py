@@ -35,6 +35,8 @@ parser.add_argument('--use_ls1', type=int, default=0)
 parser.add_argument('--use_ls2', type=int, default=0)
 parser.add_argument('--use_amp1', type=int, default=0)
 parser.add_argument('--use_amp2', type=int, default=0)
+parser.add_argument('--warmup1', type=int, default=0)
+parser.add_argument('--warmup2', type=int, default=0)
 args = parser.parse_args()
 
 if args.use_amp1 > 0 or args.use_amp2 > 0:
@@ -54,6 +56,8 @@ if args.use_amp1 > 0 or args.use_amp2 > 0:
 
 args.use_ls1 = True if args.use_ls1 > 0 else False
 args.use_ls2 = True if args.use_ls2 > 0 else False
+args.warmup1 = True if args.warmup1 > 0 else False
+args.warmup2 = True if args.warmup2 > 0 else False
 
 def multi_thread_run(config='_sarResNet50_g1_blConfig', 
                     train_url_base='',
@@ -156,6 +160,10 @@ if args.use_ls1:
     config1 += '_ls'
 if args.use_ls2:
     config2 += '_ls'
+if args.warmup1:
+    config1 += '_warmup'
+if args.warmup2:
+    config2 += '_warmup'
 
 t1 = myThread(threadID=1,
                 config=config1, 
