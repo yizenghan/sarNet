@@ -40,6 +40,10 @@ parser.add_argument('--target_rate1', type=float, default=0.5,
                     help='an argument needed in huawei cloud, but i do not know its usage')
 parser.add_argument('--target_rate2', type=float, default=0.5,
                     help='an argument needed in huawei cloud, but i do not know its usage')
+parser.add_argument('--lambda_act1', type=float, default=1.0,
+                    help='an argument needed in huawei cloud, but i do not know its usage')
+parser.add_argument('--lambda_act2', type=float, default=1.0,
+                    help='an argument needed in huawei cloud, but i do not know its usage')
 
 parser.add_argument('--use_ls', type=int, default=0,
                     help='an argument needed in huawei cloud, but i do not know its usage')
@@ -150,7 +154,7 @@ t1 = myThread(threadID=1,
                 train_url_base=args.train_url, 
                 data_url=args.data_url,
                 dist_url=f'tcp://127.0.0.1:30076',
-                lambda_act=1.0,
+                lambda_act=args.lambda_act1,
                 t0=0.5,
                 target_rate=args.target_rate1,
                 optimize_rate_begin_epoch=55,
@@ -165,7 +169,7 @@ t2 = myThread(threadID=2,
                 patch_groups=args.patch_groups2,
                 data_url=args.data_url,
                 dist_url=f'tcp://127.0.0.1:30075',
-                lambda_act=1.0,
+                lambda_act=args.lambda_act2,
                 t0=0.5,
                 target_rate=args.target_rate2,
                 optimize_rate_begin_epoch=55,

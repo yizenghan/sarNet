@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=4,5,7 \
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
 python main_sar.py \
 --test_code 0 \
 --config configs/_sarResNet50_g2_blConfig_ls.py \

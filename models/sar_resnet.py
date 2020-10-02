@@ -133,7 +133,7 @@ class Bottleneck_refine(nn.Module):
                 mask1 = mask.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
             else:
                 mask1 = mask.clone()
-            mask1 = F.interpolate(mask1, size = (h,w), mode = 'nearest')
+            mask1 = F.interpolate(mask1, size = (h,w))
             # print(mask1.shape, x.shape)
             out = x * mask1
             # print(mask1)
@@ -147,7 +147,7 @@ class Bottleneck_refine(nn.Module):
                 mask2 = mask.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
             else:
                 mask2 = mask.clone()
-            mask2 = F.interpolate(mask2, size = (h,w), mode = 'nearest')
+            mask2 = F.interpolate(mask2, size = (h,w))
             # print(mask2.shape, out.shape)
             out = out * mask2
             out = self.conv2(out)
@@ -179,7 +179,7 @@ class Bottleneck_refine(nn.Module):
                 mask1 = mask.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
             else:
                 mask1 = mask.clone()
-            mask1 = F.interpolate(mask1, size = (h,w), mode = 'nearest')
+            mask1 = F.interpolate(mask1, size = (h,w))
             # print(mask1.shape, x.shape)
             out = x * mask1
 
@@ -269,7 +269,7 @@ class Bottleneck_refine(nn.Module):
         
         ratio = mask1.sum() / mask1.numel()
         print(ratio)
-        mask1 = F.interpolate(mask1, size = (h,w), mode = 'nearest')
+        mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
         out = x * mask1
         c_in = out.shape[1]
@@ -284,7 +284,7 @@ class Bottleneck_refine(nn.Module):
             mask2 = mask.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
         else:
             mask2 = mask.clone()
-        mask2 = F.interpolate(mask2, size = (h,w), mode = 'nearest')
+        mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
         out = out * mask2
