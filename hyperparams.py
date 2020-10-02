@@ -321,7 +321,7 @@ def get_hyperparams(args, test_code=0):
         elif args.hyperparams_set_index == 3: # sarResNet
             args.epochs = 110
             args.start_eval_epoch = 0
-            args.batch_size = 256*4
+            args.batch_size = 256*2
             ### data transform
             args.autoaugment = False
             args.colorjitter = True
@@ -346,7 +346,7 @@ def get_hyperparams(args, test_code=0):
         elif args.hyperparams_set_index == 333: # sarResNet, use label smooth
             args.epochs = 110
             args.start_eval_epoch = 0
-            args.batch_size = 256*4
+            args.batch_size = 256*2
             ### data transform
             args.autoaugment = False
             args.colorjitter = True
@@ -366,7 +366,6 @@ def get_hyperparams(args, test_code=0):
             args.warmup_lr = 0
             ### Mixup
             args.mixup = 0.0
-
             return args
 
         elif args.hyperparams_set_index == 99: # ResAttentionNet
@@ -394,6 +393,7 @@ def get_hyperparams(args, test_code=0):
             args.mixup = 0.0
 
             return args
+
         elif args.hyperparams_set_index == 100: # RegNet implement EfficientNet
             args.epochs = 100
             args.start_eval_epoch = 80

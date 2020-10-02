@@ -10,20 +10,6 @@ warnings.filterwarnings("ignore")
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 
 
-try:
-    from apex import amp
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel import convert_syncbn_model
-    has_apex = True
-except ImportError:
-    mox.file.copy_parallel('sarNet/apex-master/', '/cache/apex-master')
-    os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" /cache/apex-master')
-    from apex import amp
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel import convert_syncbn_model
-    has_apex = True
-    print('successfully install apex')
-
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--data_url', type=str, metavar='DIR', default='/data/dataset/CLS-LOC/',
                     help='path to dataset')
@@ -45,11 +31,29 @@ parser.add_argument('--lambda_act1', type=float, default=1.0,
 parser.add_argument('--lambda_act2', type=float, default=1.0,
                     help='an argument needed in huawei cloud, but i do not know its usage')
 
-parser.add_argument('--use_ls', type=int, default=0,
-                    help='an argument needed in huawei cloud, but i do not know its usage')
+parser.add_argument('--use_ls1', type=int, default=0)
+parser.add_argument('--use_ls2', type=int, default=0)
+parser.add_argument('--use_amp1', type=int, default=0)
+parser.add_argument('--use_amp2', type=int, default=0)
 args = parser.parse_args()
 
-args.use_ls = True if args.use_ls > 0 else False
+if args.use_amp1 > 0 or args.use_amp2 > 0:
+    try:
+        from apex import amp
+        from apex.parallel import DistributedDataParallel as DDP
+        from apex.parallel import convert_syncbn_model
+        has_apex = True
+    except ImportError:
+        mox.file.copy_parallel('sarNet/apex-master/', '/cache/apex-master')
+        os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" /cache/apex-master')
+        from apex import amp
+        from apex.parallel import DistributedDataParallel as DDP
+        from apex.parallel import convert_syncbn_model
+        has_apex = True
+        print('successfully install apex')
+
+args.use_ls1 = True if args.use_ls1 > 0 else False
+args.use_ls2 = True if args.use_ls2 > 0 else False
 
 def multi_thread_run(config='_sarResNet50_g1_blConfig', 
                     train_url_base='',
@@ -65,7 +69,7 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
                     gpu='0,1,2,3'):
     ta_str = str(target_rate)
     ls = 1 if args.use_ls else 0
-    train_url = f'{train_url_base}g{patch_groups}_target{ta_str[-1]}_ls{ls}/'
+    train_url = f'{train_url_base}g{patch_groups}_target{ta_str[-1]}_ls{ls}_amp{use_amp}/'
     cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
             --train_url {train_url} \
             --data_url {data_url} \
@@ -144,8 +148,9 @@ class myThread(threading.Thread):
 
 config1 = f'_sarResNet50_g{args.patch_groups1}_blConfig'
 config2 = f'_sarResNet50_g{args.patch_groups2}_blConfig'
-if args.use_ls:
+if args.use_ls1:
     config1 += '_ls'
+if args.use_ls2:
     config2 += '_ls'
 
 t1 = myThread(threadID=1,
@@ -158,7 +163,7 @@ t1 = myThread(threadID=1,
                 t0=0.5,
                 target_rate=args.target_rate1,
                 optimize_rate_begin_epoch=55,
-                use_amp=1,
+                use_amp=args.use_amp1,
                 test_code=0,
                 gpu='0,1,2,3')
 t1.start()
@@ -173,7 +178,7 @@ t2 = myThread(threadID=2,
                 t0=0.5,
                 target_rate=args.target_rate2,
                 optimize_rate_begin_epoch=55,
-                use_amp=1,
+                use_amp=args.use_amp2,
                 test_code=0,
                 gpu='4,5,6,7')
 t2.start()

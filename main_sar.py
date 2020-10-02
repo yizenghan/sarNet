@@ -36,12 +36,6 @@ import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 
-from apex import amp
-from apex.parallel import DistributedDataParallel as DDP
-from apex.parallel import convert_syncbn_model
-has_apex = True
-amp.register_float_function(torch, 'sigmoid')
-
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
 parser.add_argument('--data_url', type=str, metavar='DIR', default='/data/dataset/CLS-LOC/',
@@ -125,6 +119,15 @@ parser.add_argument('--optimize_rate_begin_epoch', default=45, type=int)
 parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
 
+args = parser.parse_args()
+
+if args.use_amp > 0:
+    from apex import amp
+    from apex.parallel import DistributedDataParallel as DDP
+    from apex.parallel import convert_syncbn_model
+    has_apex = True
+    amp.register_float_function(torch, 'sigmoid')
+
 best_acc1 = 0
 best_acc1_corresponding_acc5 = 0
 val_acc_top1 = []
@@ -138,7 +141,6 @@ epoch_log = []
 
 
 def main():
-    args = parser.parse_args()
 
     if not args.train_on_cloud:
         if not os.path.exists(args.train_url):
