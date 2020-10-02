@@ -10,7 +10,6 @@ warnings.filterwarnings("ignore")
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 
 
-
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as DDP
@@ -37,9 +36,9 @@ parser.add_argument('--patch_groups1', type=int, default=1,
                     help='an argument needed in huawei cloud, but i do not know its usage')
 parser.add_argument('--patch_groups2', type=int, default=1,
                     help='an argument needed in huawei cloud, but i do not know its usage')
-parser.add_argument('--target_rate1', type=int, default=0.5,
+parser.add_argument('--target_rate1', type=float, default=0.5,
                     help='an argument needed in huawei cloud, but i do not know its usage')
-parser.add_argument('--target_rate2', type=int, default=0.5,
+parser.add_argument('--target_rate2', type=float, default=0.5,
                     help='an argument needed in huawei cloud, but i do not know its usage')
 
 parser.add_argument('--use_ls', type=int, default=0,
