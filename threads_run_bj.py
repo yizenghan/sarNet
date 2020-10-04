@@ -18,18 +18,12 @@ parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/test
 parser.add_argument('--init_method', type=str, default='',
                     help='an argument needed in huawei cloud, but i do not know its usage')
 
-parser.add_argument('--patch_groups1', type=int, default=1,
-                    help='an argument needed in huawei cloud, but i do not know its usage')
-parser.add_argument('--patch_groups2', type=int, default=1,
-                    help='an argument needed in huawei cloud, but i do not know its usage')
-parser.add_argument('--target_rate1', type=float, default=0.5,
-                    help='an argument needed in huawei cloud, but i do not know its usage')
-parser.add_argument('--target_rate2', type=float, default=0.5,
-                    help='an argument needed in huawei cloud, but i do not know its usage')
-parser.add_argument('--lambda_act1', type=float, default=1.0,
-                    help='an argument needed in huawei cloud, but i do not know its usage')
-parser.add_argument('--lambda_act2', type=float, default=1.0,
-                    help='an argument needed in huawei cloud, but i do not know its usage')
+parser.add_argument('--patch_groups1', type=int, default=1)
+parser.add_argument('--patch_groups2', type=int, default=1)
+parser.add_argument('--target_rate1', type=float, default=0.5)
+parser.add_argument('--target_rate2', type=float, default=0.5)
+parser.add_argument('--lambda_act1', type=float, default=1.0)
+parser.add_argument('--lambda_act2', type=float, default=1.0)
 
 parser.add_argument('--use_ls1', type=int, default=0)
 parser.add_argument('--use_ls2', type=int, default=0)
@@ -37,6 +31,10 @@ parser.add_argument('--use_amp1', type=int, default=0)
 parser.add_argument('--use_amp2', type=int, default=0)
 parser.add_argument('--warmup1', type=int, default=0)
 parser.add_argument('--warmup2', type=int, default=0)
+
+parser.add_argument('--width1', type=float, default=1.0)
+parser.add_argument('--width2', type=float, default=1.0)
+
 args = parser.parse_args()
 
 if args.use_amp1 > 0 or args.use_amp2 > 0:
@@ -143,8 +141,20 @@ class myThread(threading.Thread):
                 gpu=self.gpu)
         os.system(cmd)
 
-config1 = f'_sarResNet50_g{args.patch_groups1}_blConfig'
-config2 = f'_sarResNet50_g{args.patch_groups2}_blConfig'
+if args.width1 == 0.5:
+    config1 = f'_sarResNet50_w5_g{args.patch_groups1}_blConfig'
+elif args.width1 == 0.75:
+    config1 = f'_sarResNet50_w75_g{args.patch_groups1}_blConfig'
+else:
+    config1 = f'_sarResNet50_g{args.patch_groups1}_blConfig'
+
+if args.width2 == 0.5:
+    config2 = f'_sarResNet50_w5_g{args.patch_groups2}_blConfig'
+elif args.width2 == 0.75:
+    config2 = f'_sarResNet50_w75_g{args.patch_groups2}_blConfig'
+else:
+    config2 = f'_sarResNet50_g{args.patch_groups2}_blConfig'
+
 if args.use_ls1:
     config1 += '_ls'
 if args.use_ls2:

@@ -453,18 +453,6 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         [batch_time, data_time,act_rates, losses, losses_cls, losses_act, top1, top5],
         prefix="Epoch: [{}/{}]".format(epoch, args.epochs))
 
-    # batch_time = AverageMeter('Time', ':6.3f')
-    # data_time = AverageMeter('Data', ':6.3f')
-    # losses = AverageMeter('Loss', ':.4e')
-    # top1 = AverageMeter('Acc@1', ':6.2f')
-    # top5 = AverageMeter('Acc@5', ':6.2f')
-    # train_batches_num = len(train_loader)
-    # train_progress = ProgressMeter(
-    #     train_batches_num,
-    #     [batch_time, data_time, losses, top1, top5],
-    #     prefix="Epoch: [{}/{}]".format(epoch, args.epochs))
-
-    ### Switch to train mode
     model.train()
 
     end = time.time()
@@ -551,16 +539,6 @@ def validate(val_loader, model, criterion, args, target_rate):
         [batch_time, act_rates,losses, losses_cls, losses_act, top1, top5],
         prefix='Test: ')
 
-    # batch_time = AverageMeter('Time', ':6.3f')
-    # losses = AverageMeter('Loss', ':.4e')
-    # top1 = AverageMeter('Acc@1', ':6.2f')
-    # top5 = AverageMeter('Acc@5', ':6.2f')
-    # progress = ProgressMeter(
-    #     len(val_loader),
-    #     [batch_time, losses, top1, top5],
-    #     prefix='Test: ')
-
-    ### Switch to evaluate mode
     model.eval()
 
     end = time.time()

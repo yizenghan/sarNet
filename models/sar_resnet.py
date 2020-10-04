@@ -442,8 +442,9 @@ class sarModule(nn.Module):
         return out, _masks, flops
 
 class sarResNet(nn.Module):
-    def __init__(self, block_base, block_refine, layers, num_classes=1000, patch_groups=1, mask_size=7):
-        num_channels = [64, 128, 256, 512]
+    def __init__(self, block_base, block_refine, layers, num_classes=1000, patch_groups=1, mask_size=7, width=1.0):
+        num_channels = [int(64*width), int(128*width), int(256*width), 512]
+        # print(num_channels)
         self.inplanes = 64
         super(sarResNet, self).__init__()
         self.conv1 = nn.Conv2d(3, num_channels[0], kernel_size=7, stride=2, padding=3,
@@ -616,14 +617,14 @@ class sarResNet(nn.Module):
 
         return x, _masks, flops
 
-def sar_resnet(depth, num_classes=1000, patch_groups=1, mask_size=7):
+def sar_resnet(depth, num_classes=1000, patch_groups=1, mask_size=7, width=1.0):
     layers = {
         50: [3, 4, 6, 3],
         101: [4, 8, 18, 3],
         152: [5, 12, 30, 3]
     }[depth]
     model = sarResNet(block_base=Bottleneck, block_refine=Bottleneck_refine, layers=layers, 
-                    num_classes=num_classes, patch_groups=patch_groups, mask_size=mask_size)
+                    num_classes=num_classes, patch_groups=patch_groups, mask_size=mask_size, width=width)
     return model
 
 
@@ -694,13 +695,13 @@ if __name__ == "__main__":
     # print(sar_res)
     
     with torch.no_grad():
-        sar_res = sar_resnet(depth=50, patch_groups=4)
+        sar_res = sar_resnet(depth=50, patch_groups=1, width=0.75)
         # print(model)
         sar_res.eval()
         x = torch.rand(1,3,224,224)
-        y, _masks = sar_res(x,inference=False,temperature=1e-8)
-        print(len(_masks))
-        print(_masks[0].shape)
+        # y, _masks = sar_res(x,inference=False,temperature=1e-8)
+        # print(len(_masks))
+        # print(_masks[0].shape)
 
         y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
         print(len(_masks))
