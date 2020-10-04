@@ -68,13 +68,20 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
                     optimize_rate_begin_epoch=55,
                     use_amp=1,
                     use_ls=1,
+                    width=1.0,
                     warmup=True,
                     test_code=0,
                     gpu='0,1,2,3'):
     ta_str = str(target_rate)
     ls = 1 if use_ls else 0
     wmup = 1 if warmup else 0
-    train_url = f'{train_url_base}g{patch_groups}_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}/'
+    if width == 0.5:
+        wd = '05'
+    elif width == 0.75:
+        wd = '075'
+    else:
+        wd = '1'
+    train_url = f'{train_url_base}width{wd}_g{patch_groups}_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}/'
     cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
             --train_url {train_url} \
             --data_url {data_url} \
@@ -103,6 +110,7 @@ class myThread(threading.Thread):
                 optimize_rate_begin_epoch=55,
                 use_amp=1,
                 use_ls=1,
+                width=1.0,
                 warmup=True,
                 test_code=0,
                 gpu='0,1,2,3'):
@@ -118,6 +126,7 @@ class myThread(threading.Thread):
         self.target_rate = target_rate
         self.optimize_rate_begin_epoch = optimize_rate_begin_epoch
         self.use_amp = use_amp
+        self.width = width
         self.test_code = test_code
         self.gpu = gpu
         self.use_ls = use_ls
@@ -136,6 +145,7 @@ class myThread(threading.Thread):
                 optimize_rate_begin_epoch=self.optimize_rate_begin_epoch,
                 use_amp=self.use_amp,
                 use_ls=self.use_ls,
+                width = self.width,
                 warmup=self.warmup,
                 test_code=self.test_code,
                 gpu=self.gpu)
@@ -177,6 +187,7 @@ t1 = myThread(threadID=1,
                 use_amp=args.use_amp1,
                 use_ls = args.use_ls1,
                 warmup=args.warmup1,
+                width = args.width1,
                 test_code=0,
                 gpu='0,1,2,3')
 t1.start()
@@ -194,6 +205,7 @@ t2 = myThread(threadID=2,
                 use_amp=args.use_amp2,
                 use_ls = args.use_ls2,
                 warmup=args.warmup2,
+                width = args.width2,
                 test_code=0,
                 gpu='4,5,6,7')
 t2.start()
