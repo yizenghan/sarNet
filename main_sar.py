@@ -318,7 +318,8 @@ def main_worker(gpu, ngpus_per_node, args):
                 pass
 
             model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
+            if not args.evaluate:
+                optimizer.load_state_dict(checkpoint['optimizer'])
             val_acc_top1 = checkpoint['val_acc_top1']
             val_acc_top5 = checkpoint['val_acc_top5']
             tr_acc_top1 = checkpoint['tr_acc_top1']
@@ -365,8 +366,8 @@ def main_worker(gpu, ngpus_per_node, args):
         num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
-        target_rate = args.target_rate
-        validate(val_loader, model, criterion, args, target_rate)
+        # target_rate = args.target_rate
+        adaptive_inferece(val_loader, model, criterion, args)
         return
 
     epoch_time = AverageMeter('Epoch Tiem', ':6.3f')
@@ -525,6 +526,66 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
     return top1.avg, top5.avg, losses.avg, lr
 
+def adaptive_inferece(val_loader, model, criterion, args):
+    batch_time = AverageMeter('Time', ':6.3f')
+    losses_cls = AverageMeter('Loss_cls', ':.4e')
+    losses_act = AverageMeter('Loss_activate', ':.4e')
+    losses = AverageMeter('Loss', ':.4e')
+    act_rates = AverageMeter('Activation rate', ':.2e')
+    top1 = AverageMeter('Acc@1', ':6.2f')
+    top5 = AverageMeter('Acc@5', ':6.2f')
+
+    all_flops = AverageMeter('FLOPs', ':.4e')
+    progress = ProgressMeter(
+        len(val_loader),
+        [batch_time, act_rates,losses, losses_cls, losses_act, top1, top5, all_flops],
+        prefix='Test: ')
+
+    model.eval()
+
+    end = time.time()
+    with torch.no_grad():
+        for i, (input, target) in enumerate(val_loader):
+            if args.gpu is not None:
+                input = input.cuda(args.gpu, non_blocking=True)
+            target = target.cuda(args.gpu, non_blocking=True)
+
+            ### Compute output single crop
+            # output = model(input)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=0.01, inference=False)
+            # for i in range(len(_masks)):
+            #     hhh = (_masks[i] > 0.99).float()
+            #     print(hhh.shape, hhh.sum()/_masks[i].numel())
+            # assert(0==1)
+            flops /= 1e9
+            all_flops.update(flops, input.size(0))
+            loss_cls= criterion(output, target)
+            act_rate = 0.0
+            for act in _masks:
+                act_rate += torch.mean(act)
+                
+            act_rate = torch.mean(act_rate/len(_masks))
+            loss = loss_cls
+            
+            act_rates.update(act_rate.item(), input.size(0))
+            losses_cls.update(loss_cls.item(), input.size(0))
+
+            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
+            losses.update(loss.data.item(), input.size(0))
+            top1.update(acc1.item(), input.size(0))
+            top5.update(acc5.item(), input.size(0))
+
+            ### Measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if i % 10 == 0:
+                progress.display(i)
+
+    print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f} FLOPs {flops.avg:.4f}'
+          .format(top1=top1, top5=top5, flops=all_flops))
+
+    return top1.avg, top5.avg, losses.avg
 
 def validate(val_loader, model, criterion, args, target_rate):
     batch_time = AverageMeter('Time', ':6.3f')

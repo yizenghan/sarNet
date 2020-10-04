@@ -268,7 +268,8 @@ class Bottleneck_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        print(ratio)
+        # ratio = 0.69
+        # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
         out = x * mask1
@@ -287,6 +288,7 @@ class Bottleneck_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
+        # ratio = 0.69
         out = out * mask2
         c_in = out.shape[1]
         out = self.conv2(out)
@@ -695,7 +697,7 @@ if __name__ == "__main__":
     # print(sar_res)
     
     with torch.no_grad():
-        sar_res = sar_resnet(depth=50, patch_groups=1, width=0.75)
+        sar_res = sar_resnet(depth=50, patch_groups=4, width=1)
         # print(model)
         sar_res.eval()
         x = torch.rand(1,3,224,224)
