@@ -20,10 +20,6 @@ parser.add_argument('--init_method', type=str, default='',
 
 parser.add_argument('--patch_groups1', type=int, default=1)
 parser.add_argument('--patch_groups2', type=int, default=1)
-parser.add_argument('--target_rate1', type=float, default=0.5)
-parser.add_argument('--target_rate2', type=float, default=0.5)
-parser.add_argument('--lambda_act1', type=float, default=1.0)
-parser.add_argument('--lambda_act2', type=float, default=1.0)
 
 parser.add_argument('--use_ls1', type=int, default=0)
 parser.add_argument('--use_ls2', type=int, default=0)
@@ -72,11 +68,17 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
                     warmup=True,
                     test_code=0,
                     gpu='0,1,2,3'):
-
+    ta_str = str(target_rate)
     ls = 1 if use_ls else 0
     wmup = 1 if warmup else 0
-    train_url = f'{train_url_base}mask1_g{patch_groups}_ls{ls}_amp{use_amp}_warmup{wmup}/'
-    cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar_nomask.py   \
+    if width == 0.5:
+        wd = '05'
+    elif width == 0.75:
+        wd = '075'
+    else:
+        wd = '1'
+    train_url = f'{train_url_base}width{wd}_g{patch_groups}_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}/'
+    cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
             --train_url {train_url} \
             --data_url {data_url} \
             --config obs://d-cheap-net-shanghai/hanyz/sarNet/configs/{config}.py \
@@ -145,19 +147,22 @@ class myThread(threading.Thread):
                 gpu=self.gpu)
         os.system(cmd)
 
-if args.width1 == 0.5:
-    config1 = f'_sarResNet50_w5_g{args.patch_groups1}_blConfig'
-elif args.width1 == 0.75:
-    config1 = f'_sarResNet50_w75_g{args.patch_groups1}_blConfig'
-else:
-    config1 = f'_sarResNet50_g{args.patch_groups1}_blConfig'
+# if args.width1 == 0.5:
+#     config1 = f'_sarResNet50_w5_g{args.patch_groups1}_blConfig'
+# elif args.width1 == 0.75:
+#     config1 = f'_sarResNet50_w75_g{args.patch_groups1}_blConfig'
+# else:
+#     config1 = f'_sarResNet50_g{args.patch_groups1}_blConfig'
 
-if args.width2 == 0.5:
-    config2 = f'_sarResNet50_w5_g{args.patch_groups2}_blConfig'
-elif args.width2 == 0.75:
-    config2 = f'_sarResNet50_w75_g{args.patch_groups2}_blConfig'
-else:
-    config2 = f'_sarResNet50_g{args.patch_groups2}_blConfig'
+# if args.width2 == 0.5:
+#     config2 = f'_sarResNet50_w5_g{args.patch_groups2}_blConfig'
+# elif args.width2 == 0.75:
+#     config2 = f'_sarResNet50_w75_g{args.patch_groups2}_blConfig'
+# else:
+#     config2 = f'_sarResNet50_g{args.patch_groups2}_blConfig'
+
+config1 = f'_sarResNet50_mask1_g{args.patch_groups1}_blConfig'
+config2 = f'_sarResNet50_mask1_g{args.patch_groups2}_blConfig'
 
 if args.use_ls1:
     config1 += '_ls'
