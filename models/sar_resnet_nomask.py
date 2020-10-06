@@ -426,7 +426,7 @@ if __name__ == "__main__":
     # print(sar_res)
     
     with torch.no_grad():
-        sar_res = sar_resnet_nomask(depth=101, patch_groups=1, width=1, alpha=1, beta=2)
+        sar_res = sar_resnet_nomask(depth=50, patch_groups=1, width=1, alpha=1, beta=1)
         cls_ops, cls_params = measure_model(sar_res, 224, 224)
         print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
         # print(model)
