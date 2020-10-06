@@ -71,7 +71,7 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
     ls = 1 if use_ls else 0
     wmup = 1 if warmup else 0
     train_url = f'{train_url_base}mask1_g{patch_groups}_ls{ls}_amp{use_amp}_warmup{wmup}/'
-    cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
+    cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar_nomask.py   \
             --train_url {train_url} \
             --data_url {data_url} \
             --config obs://d-cheap-net-shanghai/hanyz/sarNet/configs/{config}.py \
