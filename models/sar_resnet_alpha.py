@@ -6,7 +6,7 @@ from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
-__all__ = ['sar_resnet']
+__all__ = ['sar_resnet_alpha']
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
@@ -631,7 +631,7 @@ class sarResNet(nn.Module):
 
         return x, _masks, flops
 
-def sar_resnet(depth, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1):
+def sar_resnet_alpha(depth, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1):
     layers = {
         50: [3, 4, 6, 3],
         101: [4, 8, 18, 3],
