@@ -221,6 +221,9 @@ def blresnet_model(depth, alpha, beta, num_classes=1000, pretrained=False):
     return model
 
 if __name__ == '__main__':
-    blres = blresnet_model(depth=101,alpha=1,beta=1)
+    from op_counter import measure_model
+    blres = blresnet_model(depth=50,alpha=2,beta=2)
+    cls_ops, cls_params = measure_model(blres, 224, 224)
+    print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
     x = torch.rand(1,3,224,224)
     y = blres(x)

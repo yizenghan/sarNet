@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
-from .op_counter import measure_model
 
 __all__ = ['sar_resnet']
 
@@ -37,7 +36,8 @@ class Bottleneck(nn.Module):
         self.have_1x1conv2d = False
         if self.downsample is not None:
             self.have_pool = True
-            self.have_1x1conv2d = True
+            if len(self.downsample) > 1:
+                self.have_1x1conv2d = True
         
         self.stride = stride
         self.last_relu = last_relu
@@ -89,12 +89,13 @@ class Bottleneck(nn.Module):
         out = self.bn3(out)
 
         if self.downsample is not None:
-            _, c_in, h, w = x.shape
+            c_in = x.shape[1]
             residual = self.downsample(x)
+            _, c, h, w = residual.shape
             if self.have_pool:
                 flops += 9 * c_in * h * w
             if self.have_1x1conv2d:
-                flops += c_in * residual.shape[1] * residual.shape[2] * residual.shape[3]  
+                flops += c_in * c * h * w
         
         out += residual
         if self.last_relu:
@@ -257,7 +258,7 @@ class Bottleneck_refine(nn.Module):
         if self.downsample is not None:     # skip connection before mask
             c_in = x.shape[1]
             residual = self.downsample(x)
-            flops += c_in * residual.shape[1] * residual.shape[2] + residual.shape[3]
+            flops += c_in * residual.shape[1] * residual.shape[2] * residual.shape[3]
 
         b,c,h,w = x.shape
         g = mask.shape[1]
@@ -268,7 +269,7 @@ class Bottleneck_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        # ratio = 0.69
+        # ratio = 0.487
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
@@ -288,7 +289,7 @@ class Bottleneck_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
-        # ratio = 0.69
+        # ratio = 0.487
         out = out * mask2
         c_in = out.shape[1]
         out = self.conv2(out)
@@ -697,7 +698,7 @@ if __name__ == "__main__":
     # print(sar_res)
     
     with torch.no_grad():
-        sar_res = sar_resnet(depth=50, patch_groups=4, width=1)
+        sar_res = sar_resnet(depth=50, patch_groups=1, width=0.5)
         # print(model)
         sar_res.eval()
         x = torch.rand(1,3,224,224)
