@@ -5,3 +5,4 @@ from .sar_resnet import *
 # from .base_refineGroup_resnet import *
 from .gumbel_softmax import *
 from .sar_resnet_nomask import *
+from .sar_resnet_alpha import *
