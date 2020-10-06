@@ -217,7 +217,7 @@ class sarModule(nn.Module):
         x_refine = self.little_e(x_refine)
         _,_,h,w = x_refine.shape
         x_base = F.interpolate(x_base, scale_factor=2, mode = 'bilinear', align_corners=False)
-        out = self.relu(x_base )
+        out = self.relu(x_base + x_refine)
         out = self.fusion[0](out)
         return out
 
@@ -237,7 +237,7 @@ class sarModule(nn.Module):
         
         # _,_,h,w = x_refine.shape
         x_base = F.interpolate(x_base, scale_factor=2, mode = 'bilinear', align_corners=False)
-        out = self.relu(x_base)
+        out = self.relu(x_base + x_refine)
         out, _flops = self.fusion[0].forward_calc_flops(out)
         flops += _flops
         return out, flops
