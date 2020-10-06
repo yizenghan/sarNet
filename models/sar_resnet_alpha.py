@@ -426,7 +426,7 @@ class sarModule(nn.Module):
         if self.alpha > 1:
             x_refine = self.refine_transform(x_refine)
         _,_,h,w = x_refine.shape
-        x_base = F.interpolate(x_base, size = (h,w))
+        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear')
         out = self.relu(x_base + x_refine)
         # print(out.shape)
         out = self.fusion[0](out)
@@ -449,7 +449,7 @@ class sarModule(nn.Module):
         if self.alpha > 1:
             x_refine = self.refine_transform(x_refine)
             flops += c * x_refine.shape[1] * x_refine.shape[2] * x_refine.shape[3]
-        x_base = F.interpolate(x_base, size = (h,w))
+        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear')
         out = self.relu(x_base + x_refine)
         out, _flops = self.fusion[0].forward_calc_flops(out)
         flops += _flops
