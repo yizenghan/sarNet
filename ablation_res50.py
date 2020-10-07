@@ -69,10 +69,19 @@ flops = [a*1 for a in flops]
 acc = [76.78, 76.93, 77.25]
 obj = plot(flops, acc, label="SAR-ResNet50, G=4", isError = True, marker='d', linestyle='--', linewidth=1, color='#0066ff')
 
-# flops = [2.6671, 2.7819, 2.8983]
-# flops = [a*1 for a in flops]
-# acc = [76.78, 76.93, 77.25]
-# obj = plot(flops, acc, label="SAR-ResNet50, G=4", isError = True, marker='d', linestyle='-', linewidth=1, color='#0066ff')
+
+flops = [2.97,3.18,3.38]
+flops = [a*1 for a in flops]
+acc = [77.15,77.06,77.39]
+obj = plot(flops, acc, label="SAR-ResNet50-new, G=2", isError = True, marker='P', linestyle='-', linewidth=1, color='#339966')
+flops = [3.18,3.38]
+flops = [a*1 for a in flops]
+acc = [77.47,77.55]
+obj = plot(flops, acc, label="SAR-ResNet50-new, G=2, warmup", isError = True, marker='P', linestyle='-', linewidth=1, color='#26734d')
+flops = [2.82,2.92,3.02]
+flops = [a*1 for a in flops]
+acc = [77.05, 77.16, 77.34]
+obj = plot(flops, acc, label="SAR-ResNet50-new, G=4", isError = True, marker='d', linestyle='-', linewidth=1, color='#339933')
 
 ax.arrow(4.1007, 23.22, 2.6671-4.1007+0.06, 0, fc='r', ec='r', linestyle=':', head_width=0.03, head_length=0.06)
 plt.text(3.35, 23.23, '-35\%', family='serif', style='italic', ha='left', wrap=True,c='r')
@@ -109,10 +118,10 @@ ax.tick_params(axis='y', length=4, labelsize=12)
 
 
 plt.grid(color='#000000', alpha=0.1, linestyle='-', linewidth=0.5)
-plt.ylim(22.5,23.5)
+plt.ylim(22.25,23.5)
 plt.xlim(2.5, 4.5)
 # plt.grid()
-ax.yaxis.set_ticks(np.arange(22.5,23.5, 0.5))
+ax.yaxis.set_ticks(np.arange(22.25,23.5, 0.25))
 ax.xaxis.set_ticks(np.arange(2.5, 4.5, 0.5))
 # ax.set_xscale("log", nonposx='clip')
 
