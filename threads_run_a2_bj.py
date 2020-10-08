@@ -41,6 +41,9 @@ parser.add_argument('--alpha2', type=int, default=1)
 parser.add_argument('--self_mask1', type=int, default=0)
 parser.add_argument('--self_mask2', type=int, default=0)
 
+parser.add_argument('--dynamic_rate1', type=int, default=0)
+parser.add_argument('--dynamic_rate2', type=int, default=0)
+
 args = parser.parse_args()
 
 args.self_mask1 = True if args.self_mask1 > 0 else False
@@ -78,6 +81,7 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
                     optimize_rate_begin_epoch=55,
                     use_amp=1,
                     use_ls=1,
+                    dynamic_rate=0,
                     width=1.0,
                     warmup=True,
                     test_code=0,
@@ -91,12 +95,13 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
         wd = '075'
     else:
         wd = '1'
-    train_url = f'{train_url_base}width{wd}_g{patch_groups}_alpha{alpha}_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}/'
+    train_url = f'{train_url_base}width{wd}_g{patch_groups}_alpha{alpha}_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}_dynamicRate{dynamic_rate}/'
     cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
             --train_url {train_url} \
             --data_url {data_url} \
             --config obs://d-cheap-net/hyz/sarNet/configs/{config}.py \
             --dist_url {dist_url} \
+            --dynamic_rate {dynamic_rate} \
             --lambda_act {lambda_act} \
             --t0 {t0} \
             --target_rate {target_rate} \
@@ -113,6 +118,7 @@ class myThread(threading.Thread):
                 train_url_base='', 
                 patch_groups=1,
                 alpha=1,
+                dynamic_rate=0,
                 data_url='',
                 dist_url='127.0.0.1:10001',
                 lambda_act=1.0,
@@ -134,6 +140,7 @@ class myThread(threading.Thread):
         self.data_url = data_url
         self.dist_url = dist_url
         self.lambda_act = lambda_act
+        self.dynamic_rate=dynamic_rate,
         self.t0 = t0
         self.target_rate = target_rate
         self.optimize_rate_begin_epoch = optimize_rate_begin_epoch
@@ -153,6 +160,7 @@ class myThread(threading.Thread):
                 data_url=self.data_url,
                 dist_url=self.dist_url,
                 lambda_act=self.lambda_act,
+                dynamic_rate=self.dynamic_rate,
                 t0=self.t0,
                 target_rate=self.target_rate,
                 optimize_rate_begin_epoch=self.optimize_rate_begin_epoch,
@@ -186,6 +194,7 @@ t1 = myThread(threadID=1,
                 data_url=args.data_url,
                 dist_url=f'tcp://127.0.0.1:30076',
                 lambda_act=args.lambda_act1,
+                dynamic_rate=args.dynamic_rate1,
                 t0=0.5,
                 target_rate=args.target_rate1,
                 optimize_rate_begin_epoch=55,
@@ -205,6 +214,7 @@ t2 = myThread(threadID=2,
                 data_url=args.data_url,
                 dist_url=f'tcp://127.0.0.1:30075',
                 lambda_act=args.lambda_act2,
+                dynamic_rate=args.dynamic_rate2,
                 t0=0.5,
                 target_rate=args.target_rate2,
                 optimize_rate_begin_epoch=55,

@@ -120,7 +120,7 @@ parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
 
 args = parser.parse_args()
-
+args.dynamic_rate = True if args.dynamic_rate > 0 else False
 if args.use_amp > 0:
     from apex import amp
     from apex.parallel import DistributedDataParallel as DDP
@@ -377,6 +377,7 @@ def main_worker(gpu, ngpus_per_node, args):
             train_sampler.set_epoch(epoch)
         ### Train for one epoch
         target_rate = adjust_target_rate(epoch, args)
+        print(f'Target rate: {target_rate}')
         tr_acc1, tr_acc5, tr_loss, lr = \
             train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
 
@@ -498,7 +499,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         act_rate = torch.mean(act_rate/len(_masks))
         loss_act_rate = torch.mean(loss_act_rate/len(_masks))
         loss_act_rate = args.lambda_act * loss_act_rate
-        loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
+        loss = loss_cls + loss_act_rate
         
         act_rates.update(act_rate.item(), input.size(0))
         losses_act.update(loss_act_rate.item(),input.size(0))
@@ -659,11 +660,12 @@ def adjust_gs_temperature(epoch, step, len_epoch, args):
 def adjust_target_rate(epoch, args):
     if not args.dynamic_rate:
         return args.target_rate
-        
-    if epoch < 45:
-        target_rate = 0.95
-    elif epoch < 75:
-        target_rate = (args.target_rate - 0.95) / 30 * (epoch - 44) + 0.95
+    if epoch < args.epochs // 4:
+        target_rate = 1.0
+    elif epoch < args.epochs // 2:
+        target_rate = 0.8
+    elif epoch < args.epochs // 4 * 3:
+        target_rate = (0.8 - args.target_rate) / (args.epoch//4) * (epoch - args.epochs // 2) + 0.8
     else:
         target_rate = args.target_rate
     return target_rate
