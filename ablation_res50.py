@@ -41,12 +41,18 @@ def plot(x, y, label=None, accumulated=False, linestyle='-', linewidth=2, isErro
         return ax.plot(x, y, label=label, linestyle=linestyle, linewidth=linewidth, alpha=alpha, color=color,
                 marker=marker, markersize=6, zorder=zorder)
                 
-plt.scatter(x=4.1007*1, y=100-76.78, c='k', marker='o', label='ResNet50')
+plt.scatter(x=4.1007, y=100-76.78, c='k', marker='o', label='ResNet50')
+
+plt.scatter(x=2.85, y=22.69, c='#cc00cc', marker='o', label='bl-ResNet50, a2b2')
+
+plt.scatter(x=2.48, y=23.15, c='#cc00cc', marker='o', label='bl-ResNet50, a4b4')
+
+plt.scatter(x=2.5, y=22.20, c='#cccc00', marker='o', label='oct-ResNet50 (preAct)')
 
 flops_g1 = [3.2149, 3.6750, 4.1249]
 flops_g1 = [a*1 for a in flops_g1]
 acc_g1 = [76.91, 77.14, 77.43]
-obj = plot(flops_g1, acc_g1, label="SAR-ResNet50, G=1", isError = True, marker='*', linestyle='--', linewidth=1, color='#00ccff')
+obj = plot(flops_g1, acc_g1, label="originak, G=1, 90", isError = True, marker='*', linestyle='--', linewidth=1, color='#00ccff')
 plt.text(2.53, 23.25, 't=0.3', family='serif', style='italic', ha='left', wrap=True)
 plt.text(2.8, 23.13, 't=0.3', family='serif', style='italic', ha='left', wrap=True)
 plt.text(3.16, 23.115, 't=0.3', family='serif', style='italic', ha='left', wrap=True)
@@ -62,26 +68,31 @@ plt.text(3.95, 22.52, 't=0.7', family='serif', style='italic', ha='left', wrap=T
 flops = [2.8525, 3.0787, 3.3119]
 flops = [a*1 for a in flops]
 acc = [76.82, 76.99, 77.42]
-obj = plot(flops, acc, label="SAR-ResNet50, G=2", isError = True, marker='P', linestyle='--', linewidth=1, color='#3399ff')
+obj = plot(flops, acc, label="originak, G=2, 90", isError = True, marker='P', linestyle='--', linewidth=1, color='#3399ff')
 
 flops = [2.6671, 2.7819, 2.8983]
 flops = [a*1 for a in flops]
 acc = [76.78, 76.93, 77.25]
-obj = plot(flops, acc, label="SAR-ResNet50, G=4", isError = True, marker='d', linestyle='--', linewidth=1, color='#0066ff')
+obj = plot(flops, acc, label="originak, G=4, 90", isError = True, marker='d', linestyle='--', linewidth=1, color='#0066ff')
 
 
-flops = [2.97,3.18,3.38]
+flops = [3.27,3.67,4.07]
 flops = [a*1 for a in flops]
-acc = [77.15,77.06,77.39]
-obj = plot(flops, acc, label="SAR-ResNet50-new, G=2", isError = True, marker='P', linestyle='-', linewidth=1, color='#339966')
+acc = [77.04,77.21,77.29]
+obj = plot(flops, acc, label="G=1, 110, ls", isError = True, marker='*', linestyle='-', linewidth=1, color='#669999')
+
+flops = [2.97,3.38]
+flops = [a*1 for a in flops]
+acc = [77.15,77.39]
+obj = plot(flops, acc, label="G=2, 110, ls", isError = True, marker='P', linestyle='-', linewidth=1, color='#339966')
 flops = [3.18,3.38]
 flops = [a*1 for a in flops]
-acc = [77.47,77.55]
-obj = plot(flops, acc, label="SAR-ResNet50-new, G=2, warmup", isError = True, marker='P', linestyle='-', linewidth=1, color='#26734d')
+# acc = [77.47,77.55]
+# obj = plot(flops, acc, label="G=2, 110, ls, warmup", isError = True, marker='P', linestyle='-', linewidth=1, color='#26734d')
 flops = [2.82,2.92,3.02]
 flops = [a*1 for a in flops]
 acc = [77.05, 77.16, 77.34]
-obj = plot(flops, acc, label="SAR-ResNet50-new, G=4", isError = True, marker='d', linestyle='-', linewidth=1, color='#339933')
+obj = plot(flops, acc, label="G=4, 110, ls", isError = True, marker='d', linestyle='-', linewidth=1, color='#339933')
 
 ax.arrow(4.1007, 23.22, 2.6671-4.1007+0.06, 0, fc='r', ec='r', linestyle=':', head_width=0.03, head_length=0.06)
 plt.text(3.35, 23.23, '-35\%', family='serif', style='italic', ha='left', wrap=True,c='r')
@@ -118,11 +129,11 @@ ax.tick_params(axis='y', length=4, labelsize=12)
 
 
 plt.grid(color='#000000', alpha=0.1, linestyle='-', linewidth=0.5)
-plt.ylim(22.25,23.5)
-plt.xlim(2.5, 4.5)
+plt.ylim(22,23.5)
+plt.xlim(2.25, 4.25)
 # plt.grid()
-ax.yaxis.set_ticks(np.arange(22.25,23.5, 0.25))
-ax.xaxis.set_ticks(np.arange(2.5, 4.5, 0.5))
+ax.yaxis.set_ticks(np.arange(22,23.5, 0.25))
+ax.xaxis.set_ticks(np.arange(2.25, 4.25, 0.25))
 # ax.set_xscale("log", nonposx='clip')
 
 plt.tight_layout(pad=2.5, w_pad=2, h_pad=1)
