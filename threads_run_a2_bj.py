@@ -171,7 +171,7 @@ if args.self_mask1:
 
 config2 = f'_sarResNet50_g{args.patch_groups2}'
 if args.self_mask2:
-    config1 += f'_selfmask_a{args.alpha2}b1_blConfig'
+    config2 += f'_selfmask_a{args.alpha2}b1_blConfig'
 
 if args.use_ls1:
     config1 += '_ls'
