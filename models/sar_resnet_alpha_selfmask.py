@@ -117,7 +117,9 @@ class Bottleneck_refine(nn.Module):
         residual = x
         if self.downsample is not None:     # skip connection before mask
             residual = self.downsample(x)
+        
         mask = self.mask_gen(x, temperature=temperature)
+        
         if not inference:
             b,c,h,w = x.shape
             g = mask.shape[1]
@@ -351,10 +353,6 @@ class sarModule(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.patch_groups = groups
         self.mask_size = mask_size
-        mask_gen_list = []
-        for _ in range(blocks - 1):
-            mask_gen_list.append(maskGen(groups=groups,inplanes=out_channels,mask_size=mask_size))
-        self.mask_gen = nn.ModuleList(mask_gen_list)
         self.base_module = self._make_layer(block_base, in_channels, out_channels, blocks - 1, 2, last_relu=False)
         self.refine_module = self._make_layer(block_refine, in_channels, out_channels // alpha, blocks - 1, 1, last_relu=False)
         self.alpha = alpha
@@ -393,7 +391,6 @@ class sarModule(nn.Module):
         for i in range(len(self.base_module)):
             
             x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
-            
             x_refine, mask = self.refine_module[i](x_refine, temperature=temperature, inference=False) if i!=0 else self.refine_module[i](x, temperature=temperature, inference=False)
             _masks.append(mask)
             
