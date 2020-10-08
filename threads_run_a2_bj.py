@@ -140,7 +140,7 @@ class myThread(threading.Thread):
         self.data_url = data_url
         self.dist_url = dist_url
         self.lambda_act = lambda_act
-        self.dynamic_rate=dynamic_rate,
+        self.dynamic_rate=dynamic_rate
         self.t0 = t0
         self.target_rate = target_rate
         self.optimize_rate_begin_epoch = optimize_rate_begin_epoch
