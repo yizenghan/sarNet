@@ -38,7 +38,13 @@ parser.add_argument('--width2', type=float, default=1.0)
 parser.add_argument('--alpha1', type=int, default=1)
 parser.add_argument('--alpha2', type=int, default=1)
 
+parser.add_argument('--self_mask1', type=int, default=0)
+parser.add_argument('--self_mask2', type=int, default=0)
+
 args = parser.parse_args()
+
+args.self_mask1 = True if args.self_mask1 > 0 else False
+args.self_mask2 = True if args.self_mask2 > 0 else False
 
 if args.use_amp1 > 0 or args.use_amp2 > 0:
     try:
@@ -159,8 +165,13 @@ class myThread(threading.Thread):
         os.system(cmd)
 
 
-config1 = f'_sarResNet50_g{args.patch_groups1}_a{args.alpha1}b1_blConfig'
-config2 = f'_sarResNet50_g{args.patch_groups2}_a{args.alpha2}b1_blConfig'
+config1 = f'_sarResNet50_g{args.patch_groups1}'
+if args.self_mask1:
+    config1 += f'_selfmask_a{args.alpha1}b1_blConfig'
+
+config2 = f'_sarResNet50_g{args.patch_groups2}'
+if args.self_mask2:
+    config1 += f'_selfmask_a{args.alpha2}b1_blConfig'
 
 if args.use_ls1:
     config1 += '_ls'
