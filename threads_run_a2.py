@@ -35,6 +35,9 @@ parser.add_argument('--warmup2', type=int, default=0)
 parser.add_argument('--width1', type=float, default=1.0)
 parser.add_argument('--width2', type=float, default=1.0)
 
+parser.add_argument('--alpha1', type=int, default=1)
+parser.add_argument('--alpha2', type=int, default=1)
+
 args = parser.parse_args()
 
 if args.use_amp1 > 0 or args.use_amp2 > 0:
@@ -60,6 +63,7 @@ args.warmup2 = True if args.warmup2 > 0 else False
 def multi_thread_run(config='_sarResNet50_g1_blConfig', 
                     train_url_base='',
                     patch_groups=1, 
+                    alpha=1,
                     data_url='',
                     dist_url='127.0.0.1:10001',
                     lambda_act=1.0,
@@ -81,7 +85,7 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
         wd = '075'
     else:
         wd = '1'
-    train_url = f'{train_url_base}width{wd}_g{patch_groups}_alpha2_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}/'
+    train_url = f'{train_url_base}width{wd}_g{patch_groups}_alpha{alpha}_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}/'
     cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
             --train_url {train_url} \
             --data_url {data_url} \
@@ -102,6 +106,7 @@ class myThread(threading.Thread):
                 config='_sarResNet50_g1_blConfig', 
                 train_url_base='', 
                 patch_groups=1,
+                alpha=1,
                 data_url='',
                 dist_url='127.0.0.1:10001',
                 lambda_act=1.0,
@@ -118,6 +123,7 @@ class myThread(threading.Thread):
         self.threadID = threadID
         self.config = config
         self.patch_groups = patch_groups
+        self.alpha = alpha
         self.train_url_base = train_url_base
         self.data_url = data_url
         self.dist_url = dist_url
@@ -137,6 +143,7 @@ class myThread(threading.Thread):
         cmd = multi_thread_run(config=self.config, 
                 train_url_base=self.train_url_base, 
                 patch_groups=self.patch_groups,
+                alpha=self.alpha,
                 data_url=self.data_url,
                 dist_url=self.dist_url,
                 lambda_act=self.lambda_act,
@@ -152,8 +159,8 @@ class myThread(threading.Thread):
         os.system(cmd)
 
 
-config1 = f'_sarResNet50_g{args.patch_groups1}_a2b1_blConfig'
-config2 = f'_sarResNet50_g{args.patch_groups2}_a2b1_blConfig'
+config1 = f'_sarResNet50_g{args.patch_groups1}_a{args.alpha1}b1_blConfig'
+config2 = f'_sarResNet50_g{args.patch_groups2}_a{args.alpha2}b1_blConfig'
 
 if args.use_ls1:
     config1 += '_ls'
@@ -163,6 +170,7 @@ if args.use_ls2:
 t1 = myThread(threadID=1,
                 config=config1, 
                 patch_groups=args.patch_groups1,
+                alpha=args.alpha1,
                 train_url_base=args.train_url, 
                 data_url=args.data_url,
                 dist_url=f'tcp://127.0.0.1:30076',
@@ -182,6 +190,7 @@ t2 = myThread(threadID=2,
                 config=config2, 
                 train_url_base=args.train_url, 
                 patch_groups=args.patch_groups2,
+                alpha=args.alpha2,
                 data_url=args.data_url,
                 dist_url=f'tcp://127.0.0.1:30075',
                 lambda_act=args.lambda_act2,
