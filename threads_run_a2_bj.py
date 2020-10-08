@@ -176,10 +176,13 @@ class myThread(threading.Thread):
 config1 = f'_sarResNet50_g{args.patch_groups1}'
 if args.self_mask1:
     config1 += f'_selfmask_a{args.alpha1}b1_blConfig'
-
+else:
+    config1 += f'_a{args.alpha1}b1_blConfig'
 config2 = f'_sarResNet50_g{args.patch_groups2}'
 if args.self_mask2:
     config2 += f'_selfmask_a{args.alpha2}b1_blConfig'
+else:
+    config2 += f'_a{args.alpha2}b1_blConfig'
 
 if args.use_ls1:
     config1 += '_ls'
