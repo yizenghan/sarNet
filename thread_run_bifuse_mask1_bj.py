@@ -74,7 +74,7 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
     cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar_nomask.py   \
             --train_url {train_url} \
             --data_url {data_url} \
-            --config obs://d-cheap-net-shanghai/hanyz/sarNet/configs/{config}.py \
+            --config obs://d-cheap-net/hyz/sarNet/configs/{config}.py \
             --dist_url {dist_url} \
             --lambda_act {lambda_act} \
             --t0 {t0} \
