@@ -44,6 +44,8 @@ parser.add_argument('--self_mask2', type=int, default=0)
 parser.add_argument('--dynamic_rate1', type=int, default=0)
 parser.add_argument('--dynamic_rate2', type=int, default=0)
 
+parser.add_argument('--stage2', type=int, default=0)
+
 args = parser.parse_args()
 
 args.self_mask1 = True if args.self_mask1 > 0 else False
@@ -174,11 +176,17 @@ class myThread(threading.Thread):
 
 
 config1 = f'_sarResNet50_g{args.patch_groups1}'
+config2 = f'_sarResNet50_g{args.patch_groups2}'
+
+if args.stage2 > 0:
+    config1 += '_s2'
+    config2 += '_s2'
+
 if args.self_mask1:
     config1 += f'_selfmask_a{args.alpha1}b1_blConfig'
 else:
     config1 += f'_a{args.alpha1}b1_blConfig'
-config2 = f'_sarResNet50_g{args.patch_groups2}'
+
 if args.self_mask2:
     config2 += f'_selfmask_a{args.alpha2}b1_blConfig'
 else:
