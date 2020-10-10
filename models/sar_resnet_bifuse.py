@@ -426,8 +426,8 @@ class sarModule(nn.Module):
                     x_r2b = x_refine
                 x_b2r = self.up_b2r(x_b2r)
                 x_r2b = self.down_r2b(x_r2b)
-                x_base += x_r2b
-                x_refine += x_b2r
+                x_base = x_base + x_r2b
+                x_refine = x_refine + x_b2r
                 x_base = self.relu(x_base)
                 x_refine = self.relu(x_refine)
             elif self.alpha < 1:
@@ -465,8 +465,8 @@ class sarModule(nn.Module):
                 x_b2r = self.up_b2r(x_b2r)
                 x_r2b = self.down_r2b(x_r2b)
                 flops += x_r2b.numel() / b * 9
-                x_base += x_r2b
-                x_refine += x_b2r
+                x_base = x_base + x_r2b
+                x_refine = x_refine + x_b2r
                 x_base = self.relu(x_base)
                 x_refine = self.relu(x_refine)
             elif self.alpha < 1:
