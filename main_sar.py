@@ -499,7 +499,10 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         act_rate = torch.mean(act_rate/len(_masks))
         loss_act_rate = torch.mean(loss_act_rate/len(_masks))
         loss_act_rate = args.lambda_act * loss_act_rate
-        loss = loss_cls + loss_act_rate
+        if args.dynamic_rate:
+            loss = loss_cls + loss_act_rate
+        else:
+            loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
         
         act_rates.update(act_rate.item(), input.size(0))
         losses_act.update(loss_act_rate.item(),input.size(0))
