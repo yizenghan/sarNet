@@ -34,7 +34,8 @@ parser.add_argument('--warmup2', type=int, default=0)
 
 parser.add_argument('--width1', type=float, default=1.0)
 parser.add_argument('--width2', type=float, default=1.0)
-
+parser.add_argument('--t0_1', type=float, default=0.5)
+parser.add_argument('--t0_2', type=float, default=0.5)
 parser.add_argument('--alpha1', type=int, default=1)
 parser.add_argument('--alpha2', type=int, default=1)
 
@@ -95,7 +96,8 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
         wd = '075'
     else:
         wd = '1'
-    train_url = f'{train_url_base}width{wd}_g{patch_groups}_alpha{alpha}_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}_dynamicRate{dynamic_rate}/'
+    str_t0 = str(t0).replace('.','_')
+    train_url = f'{train_url_base}width{wd}_g{patch_groups}_alpha{alpha}_t0{str_t0}_target{ta_str[-1]}_ls{ls}_amp{use_amp}_warmup{wmup}_dynamicRate{dynamic_rate}/'
     cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
             --train_url {train_url} \
             --data_url {data_url} \
@@ -198,7 +200,7 @@ t1 = myThread(threadID=1,
                 dist_url=f'tcp://127.0.0.1:30076',
                 lambda_act=args.lambda_act1,
                 dynamic_rate=args.dynamic_rate1,
-                t0=0.5,
+                t0=args.t0_1,
                 target_rate=args.target_rate1,
                 optimize_rate_begin_epoch=55,
                 use_amp=args.use_amp1,
@@ -218,7 +220,7 @@ t2 = myThread(threadID=2,
                 dist_url=f'tcp://127.0.0.1:30075',
                 lambda_act=args.lambda_act2,
                 dynamic_rate=args.dynamic_rate2,
-                t0=0.5,
+                t0=args.t0_2,
                 target_rate=args.target_rate2,
                 optimize_rate_begin_epoch=55,
                 use_amp=args.use_amp2,
