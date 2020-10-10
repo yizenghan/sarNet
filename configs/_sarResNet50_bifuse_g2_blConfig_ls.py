@@ -1,13 +1,13 @@
 model = dict(
-    type='models.sar_resnet_mask1_bifuse',
+    type='models.sar_resnet_bifuse',
     num_classes=1000,
     depth=50,
-    patch_groups=4,
+    patch_groups=2,
     width=1, 
     alpha=1
 )
 train_cfg = dict(
-    hyperparams_set_index=3,
+    hyperparams_set_index=333,
     crop_size=224,
 )
 test_cfg = dict(

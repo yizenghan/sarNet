@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from gumbel_softmax import GumbleSoftmax
+from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -496,13 +496,13 @@ class sarResNet(nn.Module):
         self.bn_b0 = nn.BatchNorm2d(num_channels[0])
 
         # alpha = 2
-        self.l_conv0 = nn.Conv2d(num_channels[0], num_channels[0] // 2,
+        self.l_conv0 = nn.Conv2d(num_channels[0], num_channels[0] // 1,
                                  kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn_l0 = nn.BatchNorm2d(num_channels[0] // 2)
-        self.l_conv1 = nn.Conv2d(num_channels[0] // 2, num_channels[0] //
-                                 2, kernel_size=3, stride=2, padding=1, bias=False)
-        self.bn_l1 = nn.BatchNorm2d(num_channels[0] // 2)
-        self.l_conv2 = nn.Conv2d(num_channels[0] // 2, num_channels[0], kernel_size=1, stride=1, bias=False)
+        self.bn_l0 = nn.BatchNorm2d(num_channels[0] // 1)
+        self.l_conv1 = nn.Conv2d(num_channels[0] // 1, num_channels[0] // 1, 
+                                 kernel_size=3, stride=2, padding=1, bias=False)
+        self.bn_l1 = nn.BatchNorm2d(num_channels[0] // 1)
+        self.l_conv2 = nn.Conv2d(num_channels[0] // 1, num_channels[0], kernel_size=1, stride=1, bias=False)
         self.bn_l2 = nn.BatchNorm2d(num_channels[0])
 
         self.bl_init = nn.Conv2d(num_channels[0], num_channels[0], kernel_size=1, stride=1, bias=False)
@@ -735,7 +735,7 @@ if __name__ == "__main__":
     # print(sar_res)
     
     with torch.no_grad():
-        sar_res = sar_resnet_bifuse(depth=50, patch_groups=4, width=0.75, alpha=1)
+        sar_res = sar_resnet_bifuse(depth=50, patch_groups=1, width=1, alpha=1)
         print(sar_res)
         # y = sar_res()
         sar_res.eval()
