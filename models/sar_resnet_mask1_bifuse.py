@@ -483,9 +483,13 @@ if __name__ == "__main__":
     
     with torch.no_grad():
         sar_res = sar_resnet_mask1_bifuse(depth=50, patch_groups=1, width=1, alpha=1)
-        print(sar_res)
+        # print(sar_res)
         # y = sar_res()
         sar_res.eval()
+
+        cls_ops, cls_params = measure_model(sar_res, 224, 224)
+        print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
+
         x = torch.rand(1,3,224,224)
         y = sar_res(x)
         # print(len(_masks))
