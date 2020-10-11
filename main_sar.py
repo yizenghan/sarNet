@@ -668,7 +668,7 @@ def adjust_target_rate(epoch, args):
     elif epoch < args.epochs // 2:
         target_rate = 0.8
     elif epoch < args.epochs // 4 * 3:
-        target_rate = (0.8 - args.target_rate) / (args.epochs//4) * (epoch - args.epochs // 2) + 0.8
+        target_rate = (args.target_rate-0.8) / (args.epochs//4) * (epoch - args.epochs // 2) + 0.8
     else:
         target_rate = args.target_rate
     return target_rate
