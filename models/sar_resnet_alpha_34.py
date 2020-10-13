@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -345,46 +345,25 @@ class sarModule(nn.Module):
         return nn.ModuleList(layers)
 
     def forward(self, x, temperature=1e-8, inference=False):
-        # print('base_module len: ', len(self.base_module))
         
-        # b,c,h,w = x.size()
-        # if h in [56,28]:
-        #     mask = torch.ones(1, self.patch_groups, 7, 7)
-        #     mask[0,0,0:7:2,0]=0.0            
-        # else:
-        #     mask = torch.zeros(1, self.patch_groups, 2, 2)
-        #     mask[0,0,0,0]=1.0
-        # z = torch.clone(x)
-        # mask1 = torch.zeros(b,len(self.base_module),self.patch_groups,self.mask_size,self.mask_size)
-
-        # for i in range(len(self.base_module)):
-        #     x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
-        #     mask = self.mask_gen[i](x_base, temperature=temperature)
-        #     mask1[:,i,:,:,:] = mask
-        
-        # mask2 = torch.zeros(b,len(self.base_module),self.patch_groups,self.mask_size,self.mask_size)
         _masks = []
         for i in range(len(self.base_module)):
             
             x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
-            # mask = mask1[:,i,:,:,:]
             x_refine = self.refine_module[i](x_refine, mask, inference=False) if i!=0 else self.refine_module[i](x, mask, inference=False)
-            # x_refine_2 = self.refine_module[i](x_refine_2, mask, inference=True) if i!=0 else self.refine_module[i](x, mask, inference=True)
-        
-        # print((x_refine-x_refine_2).abs().sum())
-        # assert(0==1)
         if self.alpha > 1:
             x_refine = self.refine_transform(x_refine)
         _,_,h,w = x_refine.shape
-        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear')
+        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear', align_corners=False)
         out = self.relu(x_base + x_refine)
         # print(out.shape)
         out = self.fusion[0](out)
         return out, _masks
 
     def forward_calc_flops(self, x, temperature=1e-8, inference=False):
+        
         b,c,h,w = x.size()
         flops = 0
         _masks = []
@@ -401,7 +380,7 @@ class sarModule(nn.Module):
         if self.alpha > 1:
             x_refine = self.refine_transform(x_refine)
             flops += c * x_refine.shape[1] * x_refine.shape[2] * x_refine.shape[3]
-        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear')
+        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear', align_corners=False)
         out = self.relu(x_base + x_refine)
         out, _flops = self.fusion[0].forward_calc_flops(out)
         flops += _flops
@@ -560,18 +539,22 @@ class sarResNet(nn.Module):
         x = self.relu(x)
 
         _masks = []
+        print(x.shape)
         x, mask, _flops = self.layer1.forward_calc_flops(x, temperature=temperature, inference=inference)
         _masks.extend(mask)
         flops += _flops
         
+        print(x.shape)
         x, mask, _flops = self.layer2.forward_calc_flops(x, temperature=temperature, inference=inference)
         _masks.extend(mask)
         flops += _flops
 
+        print(x.shape)
         x, mask, _flops = self.layer3.forward_calc_flops(x, temperature=temperature, inference=inference)
         flops += _flops
         _masks.extend(mask)
 
+        print(x.shape)
         for i in range(len(self.layer4)):
             x, _flops = self.layer4[i].forward_calc_flops(x)
             flops += _flops
@@ -659,12 +642,12 @@ def _rearrange_features(feat, mask):
 
 if __name__ == "__main__":
     
-    from .op_counter import measure_model
+    # from .op_counter import measure_model
     
     # print(sar_res)
     
     with torch.no_grad():
-        sar_res = sar_resnet_alpha_34(depth=34, patch_groups=1, width=1, alpha=2)
+        sar_res = sar_resnet_alpha_34(depth=34, patch_groups=1, width=1, alpha=1)
         # print(model)
         sar_res.eval()
         x = torch.rand(1,3,224,224)
@@ -674,7 +657,8 @@ if __name__ == "__main__":
 
         y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
         print(len(_masks))
-        print(_masks[9].shape)
+        for i in range(len(_masks)):
+            print(_masks[i].shape)
         print(flops / 1e9)
         # y1 = sar_res(x,inference=True)
         # print((y-y1).abs().sum())
