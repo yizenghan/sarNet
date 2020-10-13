@@ -2,6 +2,23 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class MaskUnit(nn.Module):
+    ''' 
+    Generates the mask and applies the gumbel softmax trick 
+    '''
+
+    def __init__(self, channels, stride=1, dilate_stride=1):
+        super(MaskUnit, self).__init__()
+        self.maskconv = Squeeze(channels=channels, stride=stride)
+        self.gumbel = Gumbel()
+
+    def forward(self, x, meta):
+        soft = self.maskconv(x)
+        hard = self.gumbel(soft, meta['gumbel_temp'], meta['gumbel_noise'])
+
+        return hard
+
+
 
 class Gumbel(nn.Module):
     ''' 
@@ -26,6 +43,25 @@ class Gumbel(nn.Module):
         hard = ((soft >= 0.5).float() - soft).detach() + soft
         assert not torch.any(torch.isnan(hard))
         return hard
+
+class Squeeze(nn.Module):
+    """ 
+    Squeeze module to predict masks 
+    """
+
+    def __init__(self, channels, stride=1):
+        super(Squeeze, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(channels, 1, bias=True)
+        self.conv = nn.Conv2d(channels, 1, stride=stride,
+                              kernel_size=3, padding=1, bias=True)
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, 1, 1, 1)
+        z = self.conv(x)
+        return z + y.expand_as(z)
 
        
 class maskGen(nn.Module):
@@ -73,7 +109,11 @@ class maskGen(nn.Module):
 
 if __name__ == '__main__':
     x = torch.rand(1,64,9,9)
-    mask_gen = maskGen(groups=4, inplanes=64, mask_size=3)
+    meta = {'gumbel_temp': 1.0,
+            'gumbel_noise': True}
+    mask_gen = MaskUnit(channels=64)
 
-    mask = mask_gen(x, temperature=10.0)
+    # mask_gen = maskGen(groups=4, inplanes=64, mask_size=3)
+
+    mask = mask_gen(x, meta)
     print(mask)
