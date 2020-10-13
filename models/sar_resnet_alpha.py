@@ -354,7 +354,8 @@ class sarModule(nn.Module):
             mask_gen_list.append(maskGen(groups=groups,inplanes=out_channels,mask_size=mask_size))
         self.mask_gen = nn.ModuleList(mask_gen_list)
         self.base_module = self._make_layer(block_base, in_channels, out_channels, blocks - 1, 2, last_relu=False)
-        self.refine_module = self._make_layer(block_refine, in_channels, out_channels // alpha, blocks - 1, 1, last_relu=False)
+        refine_last_relu = True if alpha > 1 else False
+        self.refine_module = self._make_layer(block_refine, in_channels, out_channels // alpha, blocks - 1, 1, last_relu=refine_last_relu)
         self.alpha = alpha
         if alpha > 1:
             self.refine_transform = nn.Sequential(
@@ -379,47 +380,23 @@ class sarModule(nn.Module):
             layers.append(block(inplanes, planes, stride, downsample,patch_groups=self.patch_groups))
             for i in range(1, blocks):
                 layers.append(block(planes, planes,
-                                    last_relu=last_relu if i == blocks - 1 else True,patch_groups=self.patch_groups))
+                                    last_relu=last_relu if i == blocks - 1 else True, 
+                                    patch_groups=self.patch_groups))
 
         return nn.ModuleList(layers)
 
     def forward(self, x, temperature=1e-8, inference=False):
-        # print('base_module len: ', len(self.base_module))
-        
-        # b,c,h,w = x.size()
-        # if h in [56,28]:
-        #     mask = torch.ones(1, self.patch_groups, 7, 7)
-        #     mask[0,0,0:7:2,0]=0.0            
-        # else:
-        #     mask = torch.zeros(1, self.patch_groups, 2, 2)
-        #     mask[0,0,0,0]=1.0
-        # z = torch.clone(x)
-        # mask1 = torch.zeros(b,len(self.base_module),self.patch_groups,self.mask_size,self.mask_size)
-
-        # for i in range(len(self.base_module)):
-        #     x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
-        #     mask = self.mask_gen[i](x_base, temperature=temperature)
-        #     mask1[:,i,:,:,:] = mask
-        
-        # mask2 = torch.zeros(b,len(self.base_module),self.patch_groups,self.mask_size,self.mask_size)
         _masks = []
         for i in range(len(self.base_module)):
-            
             x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
-            # mask = mask1[:,i,:,:,:]
             x_refine = self.refine_module[i](x_refine, mask, inference=False) if i!=0 else self.refine_module[i](x, mask, inference=False)
-            # x_refine_2 = self.refine_module[i](x_refine_2, mask, inference=True) if i!=0 else self.refine_module[i](x, mask, inference=True)
-        
-        # print((x_refine-x_refine_2).abs().sum())
-        # assert(0==1)
         if self.alpha > 1:
             x_refine = self.refine_transform(x_refine)
         _,_,h,w = x_refine.shape
-        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear')
+        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear', align_corners=False)
         out = self.relu(x_base + x_refine)
-        # print(out.shape)
         out = self.fusion[0](out)
         return out, _masks
 
@@ -440,7 +417,7 @@ class sarModule(nn.Module):
         if self.alpha > 1:
             x_refine = self.refine_transform(x_refine)
             flops += c * x_refine.shape[1] * x_refine.shape[2] * x_refine.shape[3]
-        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear')
+        x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear', align_corners=False)
         out = self.relu(x_base + x_refine)
         out, _flops = self.fusion[0].forward_calc_flops(out)
         flops += _flops
@@ -540,10 +517,7 @@ class sarResNet(nn.Module):
         _masks = []
         x, mask = self.layer1(x, temperature=temperature, inference=inference)
         _masks.extend(mask)
-        # x2 = self.layer1(x, temperature=temperature, inference=True)
-        # print((x1-x2).abs().sum())
-        # assert(0==1)
-        # print('before layer 2:', x.shape)
+
         x, mask = self.layer2(x, temperature=temperature, inference=inference)
         _masks.extend(mask)
         # print('before layer 3:', x.shape)
