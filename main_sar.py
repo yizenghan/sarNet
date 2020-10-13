@@ -663,12 +663,18 @@ def adjust_gs_temperature(epoch, step, len_epoch, args):
 def adjust_target_rate(epoch, args):
     if not args.dynamic_rate:
         return args.target_rate
-    if epoch < args.epochs // 4:
+    # if epoch < args.epochs // 4:
+    #     target_rate = 1.0
+    # elif epoch < args.epochs // 2:
+    #     target_rate = 0.8
+    # elif epoch < args.epochs // 4 * 3:
+    #     target_rate = (args.target_rate-0.8) / (args.epochs//4) * (epoch - args.epochs // 2) + 0.8
+    # else:
+    #     target_rate = args.target_rate
+    # return target_rate
+
+    if epoch < args.optimize_rate_begin_epoch:
         target_rate = 1.0
-    elif epoch < args.epochs // 2:
-        target_rate = 0.8
-    elif epoch < args.epochs // 4 * 3:
-        target_rate = (args.target_rate-0.8) / (args.epochs//4) * (epoch - args.epochs // 2) + 0.8
     else:
         target_rate = args.target_rate
     return target_rate
