@@ -201,6 +201,11 @@ if args.use_ls1:
 if args.use_ls2:
     config2 += '_ls'
 
+if args.warmup1:
+    config1 += '_warmup'
+if args.warmup2:
+    config2 += '_warmup'
+
 t1 = myThread(threadID=1,
                 config=config1, 
                 patch_groups=args.patch_groups1,

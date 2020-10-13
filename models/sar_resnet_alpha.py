@@ -310,8 +310,8 @@ class maskGen(nn.Module):
         )
         self.pool = nn.AdaptiveAvgPool2d((mask_size,mask_size))
         self.fc_gs = nn.Conv2d(groups*4,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = groups)
-        self.fc_gs.bias.data[:groups] = 0.1
-        self.fc_gs.bias.data[groups:] = 5.0      
+        self.fc_gs.bias.data[:groups] = 1.0
+        self.fc_gs.bias.data[groups:] = 10.0      
         self.gs = GumbleSoftmax()
 
     def forward(self, x, temperature=1.0):
