@@ -180,22 +180,8 @@ class myThread(threading.Thread):
         os.system(cmd)
 
 
-config1 = f'_sarResNet50_g{args.patch_groups1}'
-config2 = f'_sarResNet50_g{args.patch_groups2}'
-
-if args.stage2 > 0:
-    config1 += '_s2'
-    config2 += '_s2'
-
-if args.self_mask1:
-    config1 += f'_selfmask_a{args.alpha1}b1_blConfig'
-else:
-    config1 += f'_a{args.alpha1}b1_blConfig'
-
-if args.self_mask2:
-    config2 += f'_selfmask_a{args.alpha2}b1_blConfig'
-else:
-    config2 += f'_a{args.alpha2}b1_blConfig'
+config1 = f'_sarResNet50_g{args.patch_groups1}a{args.alpha1}'
+config2 = f'_sarResNet50_g{args.patch_groups2}a{args.alpha2}'
 
 if args.use_ls1:
     config1 += '_ls'

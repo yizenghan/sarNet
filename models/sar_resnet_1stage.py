@@ -824,7 +824,7 @@ if __name__ == "__main__":
     # print(sar_res)
     
     with torch.no_grad():
-        sar_res = sar_resnet_alpha(depth=50, patch_groups=1, width=1, alpha=2)
+        sar_res = sar_resnet_1stage(depth=50, patch_groups=2, width=1, alpha=1)
         # print(model)
         sar_res.eval()
         x = torch.rand(1,3,224,224)
