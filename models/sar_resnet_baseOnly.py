@@ -33,6 +33,7 @@ class Bottleneck(nn.Module):
         self.last_relu = last_relu
 
     def forward(self, x):
+        # print('x shape: ', x.shape)
         residual = x
         out = self.conv1(x)
         out = self.bn1(out)
@@ -132,8 +133,10 @@ class sarModule(nn.Module):
     def forward_calc_flops(self, x, temperature=1e-8, inference=False):
         b,c,h,w = x.size()
         flops = 0
+        # print('before the first block: ', x.shape)
         for i in range(len(self.base_module)):
             x_base, _flops = self.base_module[i].forward_calc_flops(x_base) if i!=0 else self.base_module[i].forward_calc_flops(x)
+            # print('x_base shape: ', x_base.shape)
             flops += _flops
         x_base = F.interpolate(x_base, scale_factor=2, mode = 'bilinear', align_corners=False)
         out = self.relu(x_base)

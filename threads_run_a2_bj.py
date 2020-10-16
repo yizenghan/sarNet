@@ -52,6 +52,9 @@ parser.add_argument('--stage2', type=int, default=0)
 parser.add_argument('--temp_scheduler1', default='exp', type=str)
 parser.add_argument('--temp_scheduler2', default='exp', type=str)
 
+parser.add_argument('--base_scale1', type=int, default=2)
+parser.add_argument('--base_scale2', type=int, default=2)
+
 args = parser.parse_args()
 
 args.self_mask1 = True if args.self_mask1 > 0 else False

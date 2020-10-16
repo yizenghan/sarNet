@@ -663,9 +663,9 @@ def adjust_gs_temperature(epoch, step, len_epoch, args):
         alpha = math.pow(0.01/args.t0, 1/(args.epochs*len_epoch))
         args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
     elif args.temp_scheduler == 'linear':
-        args.temp = args.t0 * (1 - T_cur / T_total)
+        args.temp = (args.t0 - 0.01) * (1 - T_cur / T_total) + 0.01
     else:
-        args.temp = 0.5 * args.t0 * (1 + math.cos(math.pi * T_cur / T_total))
+        args.temp = 0.5 * (args.t0-0.01) * (1 + math.cos(math.pi * T_cur / T_total)) + 0.01
 
 def adjust_target_rate(epoch, args):
     if not args.dynamic_rate:

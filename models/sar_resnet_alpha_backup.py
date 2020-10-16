@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -66,7 +66,7 @@ class Bottleneck(nn.Module):
             x = self.first_downsample(x)
             _, c, h, w = x.shape
             flops += 9 * c * h * w
-        #     print('This is the first bottleneck of a base branch')
+            # print('This is the first bottleneck of a base branch')
         # print('In a base bottleneck, x shape: ', x.shape)
         residual = x
         c_in = x.shape[1]
@@ -273,7 +273,7 @@ class Bottleneck_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        ratio = 0.5
+        # ratio = 0.3
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
@@ -293,7 +293,7 @@ class Bottleneck_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
-        ratio = 0.5
+        # ratio = 0.3
         out = out * mask2
         c_in = out.shape[1]
         out = self.conv2(out)
@@ -706,7 +706,7 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    sar_res = sar_resnet_alpha(depth=50, patch_groups=1, width=1, alpha=2, base_scale=2)
+    sar_res = sar_resnet_alpha(depth=101, patch_groups=4, width=1, alpha=2, base_scale=4)
     # with torch.no_grad():
         
         # print(model)

@@ -37,7 +37,7 @@ class Bottleneck(nn.Module):
         self.last_relu = last_relu
 
     def forward(self, x):
-        # print('x shape: ', x.shape)
+        
         residual = x
 
         out = self.conv1(x)
