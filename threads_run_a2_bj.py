@@ -112,7 +112,7 @@ def multi_thread_run(config='_sarResNet50_g1_blConfig',
         wd = '1'
     str_t0 = str(t0).replace('.','_')
     str_lambda = str(lambda_act).replace('.','_')
-    train_url = f'{train_url_base}width{wd}_g{patch_groups}_alpha{alpha}_t0_{str_t0}_target{ta_str[-1]}_lambda_{str_lambda}_ls{ls}_amp{use_amp}_warmup{wmup}_dynamicRate{dynamic_rate}/'    
+    train_url = f'{train_url_base}width{wd}_g{patch_groups}_alpha{alpha}_t0_{str_t0}_target{ta_str[-1]}_optimizeFromEpoch{optimize_rate_begin_epoch}_lambda_{str_lambda}_ls{ls}_amp{use_amp}_warmup{wmup}_dynamicRate{dynamic_rate}/'    
     cmd = f'CUDA_VISIBLE_DEVICES={gpu} python sarNet/main_sar.py   \
             --train_url {train_url} \
             --data_url {data_url} \
