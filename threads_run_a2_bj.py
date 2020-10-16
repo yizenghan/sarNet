@@ -55,6 +55,9 @@ parser.add_argument('--temp_scheduler2', default='exp', type=str)
 parser.add_argument('--base_scale1', type=int, default=2)
 parser.add_argument('--base_scale2', type=int, default=2)
 
+parser.add_argument('--optimize_rate_begin_epoch1', type=int, default=55)
+parser.add_argument('--optimize_rate_begin_epoch2', type=int, default=55)
+
 args = parser.parse_args()
 
 args.self_mask1 = True if args.self_mask1 > 0 else False
@@ -228,7 +231,7 @@ t1 = myThread(threadID=1,
                 dynamic_rate=args.dynamic_rate1,
                 t0=args.t0_1,
                 target_rate=args.target_rate1,
-                optimize_rate_begin_epoch=55,
+                optimize_rate_begin_epoch=args.optimize_rate_begin_epoch1,
                 use_amp=args.use_amp1,
                 use_ls = args.use_ls1,
                 warmup=args.warmup1,
@@ -249,7 +252,7 @@ t2 = myThread(threadID=2,
                 dynamic_rate=args.dynamic_rate2,
                 t0=args.t0_2,
                 target_rate=args.target_rate2,
-                optimize_rate_begin_epoch=55,
+                optimize_rate_begin_epoch=args.optimize_rate_begin_epoch2,
                 use_amp=args.use_amp2,
                 use_ls = args.use_ls2,
                 warmup=args.warmup2,
