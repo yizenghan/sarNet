@@ -1,5 +1,5 @@
 model = dict(
-    type='models.sar_resnet',
+    type='models.sar_resnet_alpha',
     num_classes=1000,
     depth=50,
     mask_size=7,
