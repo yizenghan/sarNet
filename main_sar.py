@@ -114,7 +114,7 @@ parser.add_argument('--lrfact', default=1, type=float,
 parser.add_argument('--dynamic_rate', default=0, type=int)
 parser.add_argument('--patch_groups', default=1, type=int)
 parser.add_argument('--optimize_rate_begin_epoch', default=45, type=int)
-
+parser.add_argument('--temp_scheduler', default='exp', type=str)
 
 parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
@@ -657,8 +657,15 @@ def validate(val_loader, model, criterion, args, target_rate):
 
 
 def adjust_gs_temperature(epoch, step, len_epoch, args):
-    alpha = math.pow(0.01/args.t0, 1/(args.epochs*len_epoch))
-    args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
+    T_total = args.epochs * len_epoch
+    T_cur = epoch * len_epoch + step
+    if args.temp_scheduler == 'exp':
+        alpha = math.pow(0.01/args.t0, 1/(args.epochs*len_epoch))
+        args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
+    elif args.temp_scheduler == 'linear':
+        args.temp = args.t0 * (1 - T_cur / T_total)
+    else:
+        args.temp = 0.5 * args.t0 * (1 + math.cos(math.pi * T_cur / T_total))
 
 def adjust_target_rate(epoch, args):
     if not args.dynamic_rate:

@@ -310,18 +310,28 @@ class maskGen(nn.Module):
         )
         self.pool = nn.AdaptiveAvgPool2d((mask_size,mask_size))
         self.fc_gs = nn.Conv2d(groups*4,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = groups)
-        self.fc_gs.bias.data[:groups] = 1.0
-        self.fc_gs.bias.data[groups:] = 10.0      
+        self.fc_gs.bias.data[:2*groups:2] = 1.0
+        self.fc_gs.bias.data[1:2*groups+1:2] = 10.0      
         self.gs = GumbleSoftmax()
 
     def forward(self, x, temperature=1.0):
         gates = self.conv3x3_gs(x)
         gates = self.pool(gates)
         gates = self.fc_gs(gates)
-        gates = gates.view(x.shape[0],2,self.groups,self.mask_size,self.mask_size)
+        g = self.groups
+
+        print(gates.shape)
+        # print(gates[0,0,:,:])
+        # print(gates[0,1,:,:])
+        gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
+
+        for i in range(gates.shape[1]):
+            print(gates[0,i,:,:,:])
+        
+        assert(0==1)
         # print(temperature)
         gates = self.gs(gates, temp=temperature, force_hard=True)
-        gates = gates[:,1,:,:,:]
+        gates = gates[:,:,1,:,:]
         return gates
 
     def forward_calc_flops(self, x, temperature=1.0):
@@ -672,20 +682,21 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    
-    with torch.no_grad():
-        sar_res = sar_resnet_alpha(depth=50, patch_groups=1, width=1, alpha=2)
+    sar_res = sar_resnet_alpha(depth=50, patch_groups=4, width=1, alpha=2)
+    # with torch.no_grad():
+        
         # print(model)
-        sar_res.eval()
-        x = torch.rand(1,3,224,224)
-        # y, _masks = sar_res(x,inference=False,temperature=1e-8)
-        # print(len(_masks))
-        # print(_masks[0].shape)
+    x = torch.rand(1,3,224,224)
+    sar_res.eval()
+    y, _masks = sar_res(x,inference=False,temperature=1e-8)
+    sar_res.train()
+    y2, _masks = sar_res(x,inference=False,temperature=1e-8)
+    print((y-y2).abs().sum())
 
-        y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-        print(len(_masks))
-        print(_masks[9].shape)
-        print(flops / 1e9)
+        # y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+        # print(len(_masks))
+        # print(_masks[9].shape)
+        # print(flops / 1e9)
         # y1 = sar_res(x,inference=True)
         # print((y-y1).abs().sum())
 

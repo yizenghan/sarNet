@@ -91,7 +91,7 @@ class Bottleneck(nn.Module):
         # print(params_count(self)/1e6)
     def forward(self, x):
         identity = x
-        print('input, ',x.shape)
+        # print('input, ',x.shape)
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
@@ -138,18 +138,18 @@ class ResNet(nn.Module):
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.layer1 = self._make_layer(block, 64, layers[0])
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
         print(params_count(self)/1e6)
@@ -515,9 +515,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     args.num_classes = 1000
-    net = resnet101(args)
-    cls_ops, cls_params = measure_model(net, 224,224)
-    print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
+    with torch.no_grad():
+        net = resnet50(args)
+        x = torch.rand(1,3,224,224)
+        net.eval()
+        y = net(x)
+        net.train()
+        y2 = net(x)
+        print((y-y2).abs().sum())
+    # cls_ops, cls_params = measure_model(net, 224,224)
+    # print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
 
     # import numpy as np
     # def params_count(model):
