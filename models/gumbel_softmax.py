@@ -58,8 +58,10 @@ class GumbleSoftmax(torch.nn.Module):
         """
         y = self.gumbel_softmax_sample(logits, temperature)
         if hard:
-            _, max_value_indexes = y.data.max(1, keepdim=True)
-            y_hard = logits.data.clone().zero_().scatter_(1, max_value_indexes, 1)
+            print(y.data.shape)
+            # assert(0==1)
+            _, max_value_indexes = y.data.max(2, keepdim=True)
+            y_hard = logits.data.clone().zero_().scatter_(2, max_value_indexes, 1)
             y = Variable(y_hard - y.data) + y
         return y
         
