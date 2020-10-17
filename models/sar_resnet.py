@@ -22,9 +22,12 @@ class Bottleneck(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         
         self.downsample = downsample
-        self.have_pool = False
+        self.pool_num = 0
         self.have_1x1conv2d = False
+        # print('hhh')
         if self.downsample is not None:
+            # print(self.downsample)
+            # print('hhh')
             self.have_pool = True
             if len(self.downsample) > 1:
                 self.have_1x1conv2d = True
@@ -258,7 +261,7 @@ class Bottleneck_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        # ratio = 0.05
+        ratio = 0
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
@@ -278,7 +281,7 @@ class Bottleneck_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
-        # ratio = 0.05
+        ratio = 0
         # print(ratio)
         out = out * mask2
         c_in = out.shape[1]
@@ -387,6 +390,8 @@ class sarModule(nn.Module):
         downsample = []
         if stride != 1:
             downsample.append(nn.AvgPool2d(3, stride=2, padding=1))
+            # if self.mask_size > 2:
+            #     downsample.append(nn.AvgPool2d(3, stride=2, padding=1))
         if inplanes != planes:
             downsample.append(nn.Conv2d(inplanes, planes, kernel_size=1, stride=1, bias=False))
             downsample.append(nn.BatchNorm2d(planes))
@@ -410,7 +415,7 @@ class sarModule(nn.Module):
             x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
-            x_refine = self.refine_module[i](x_refine, mask, inference=False) if i!=0 else self.refine_module[i](x, mask, inference=False)
+            x_refine = self.refine_module[i](x_refine, mask, inference=inference) if i!=0 else self.refine_module[i](x, mask, inference=inference)
         if self.alpha > 1:
             x_refine = self.refine_transform(x_refine)
         _,_,h,w = x_refine.shape
@@ -692,21 +697,15 @@ if __name__ == "__main__":
     
     # print(sar_res)
     
-    with torch.no_grad():
-        sar_res = sar_resnet(depth=50, patch_groups=1, width=1, alpha=2)
-        # print(model)
-        sar_res.eval()
-        x = torch.rand(1,3,224,224)
-        # y, _masks = sar_res(x,inference=False,temperature=1e-8)
-        # print(len(_masks))
-        # print(_masks[0].shape)
+    # with torch.no_grad():
+    sar_res = sar_resnet(depth=50, patch_groups=1, width=1, alpha=2)
+    # print(model)
+    
+    x = torch.rand(1,3,224,224)
+    sar_res.eval()
+    y, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+    print(flops / 1e9)
 
-        y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-        print(len(_masks))
-        print(_masks[9].shape)
-        print(flops / 1e9)
-        # y1 = sar_res(x,inference=True)
-        # print((y-y1).abs().sum())
 
     # group = 1
     # x = torch.rand(1,256,56,56)

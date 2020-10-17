@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -66,7 +66,7 @@ class Bottleneck(nn.Module):
             x = self.first_downsample(x)
             _, c, h, w = x.shape
             flops += 9 * c * h * w
-        #     print('This is the first bottleneck of a base branch')
+            # print('This is the first bottleneck of a base branch')
         # print('In a base bottleneck, x shape: ', x.shape)
         residual = x
         c_in = x.shape[1]
@@ -273,7 +273,7 @@ class Bottleneck_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        ratio = 0.5
+        # ratio = 0.3
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
@@ -293,7 +293,7 @@ class Bottleneck_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
-        ratio = 0.5
+        # ratio = 0.3
         out = out * mask2
         c_in = out.shape[1]
         out = self.conv2(out)
@@ -331,22 +331,20 @@ class maskGen(nn.Module):
         gates = self.conv3x3_gs(x)
         gates = self.pool(gates)
         gates = self.fc_gs(gates)
+        g = self.groups
 
-        # print(gates)
-        # assert(0==1)
+        # print(gates.shape)
+        # print(gates[0,0,:,:])
+        # print(gates[0,1,:,:])
         gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
 
         # for i in range(gates.shape[1]):
         #     print(gates[0,i,:,:,:])
-        #     print('hhh')
-        # 
+        
+        # assert(0==1)
         # print(temperature)
         gates = self.gs(gates, temp=temperature, force_hard=True)
         gates = gates[:,:,1,:,:]
-        # for i in range(gates.shape[1]):
-        #     print(gates[0,i,:,:])
-        #     print('hhh')
-        # assert(0==1)
         return gates
 
     def forward_calc_flops(self, x, temperature=1.0):
@@ -361,10 +359,10 @@ class maskGen(nn.Module):
         c_in = gates.shape[1]
         gates = self.fc_gs(gates)
         flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] / self.groups
-        gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
+        gates = gates.view(x.shape[0],2,self.groups,self.mask_size,self.mask_size)
         # print(temperature)
         gates = self.gs(gates, temp=temperature, force_hard=True)
-        gates = gates[:,:,1,:,:]
+        gates = gates[:,1,:,:,:]
         return gates, flops
 
 class sarModule(nn.Module):
@@ -708,7 +706,7 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    sar_res = sar_resnet_alpha(depth=50, patch_groups=1, width=1, alpha=2, base_scale=2)
+    sar_res = sar_resnet_alpha(depth=101, patch_groups=4, width=1, alpha=2, base_scale=4)
     # with torch.no_grad():
         
         # print(model)
@@ -719,11 +717,11 @@ if __name__ == "__main__":
     # y2, _masks = sar_res(x,inference=False,temperature=1e-8)
     # print((y-y2).abs().sum())
 
-    # y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-    # print(len(_masks))
-    # for i in range(len(_masks)):
-    #     print(_masks[i])
-    # print(flops / 1e9)
+    y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+    print(len(_masks))
+    for i in range(len(_masks)):
+        print(_masks[i].shape)
+    print(flops / 1e9)
         # y1 = sar_res(x,inference=True)
         # print((y-y1).abs().sum())
 

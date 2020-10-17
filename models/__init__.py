@@ -12,3 +12,5 @@ from .sar_resnet_1stage import *
 from .sar_resnet_mask1_bifuse_34 import *
 from .sar_resnet_mask1_bifuse import *
 from .sar_resnet_bifuse import *
+
+from .sar_resnet_baseOnly import *

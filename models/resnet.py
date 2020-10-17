@@ -201,13 +201,13 @@ class ResNet(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        print(x.shape)
+        print('before layer 1:', x.shape)
         x = self.layer1(x)
-        print(x.shape)
+        print('before layer 2:', x.shape)
         x = self.layer2(x)
-        print(x.shape)
+        print('before layer 3:', x.shape)
         x = self.layer3(x)
-        print(x.shape)
+        print('before layer 4:', x.shape)
         x = self.layer4(x)
 
         x = self.avgpool(x)
@@ -515,9 +515,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     args.num_classes = 1000
-    net = resnet34(args)
-    cls_ops, cls_params = measure_model(net, 224,224)
-    print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
+    with torch.no_grad():
+        net = resnet50(args)
+        x = torch.rand(1,3,224,224)
+        net.eval()
+        y = net(x)
+        net.train()
+        y2 = net(x)
+        print((y-y2).abs().sum())
+    # cls_ops, cls_params = measure_model(net, 224,224)
+    # print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
 
     # import numpy as np
     # def params_count(model):
