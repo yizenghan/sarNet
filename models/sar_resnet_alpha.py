@@ -101,7 +101,7 @@ class Bottleneck_refine(nn.Module):
         self.conv1 = nn.Conv2d(inplanes, planes // self.expansion, kernel_size=1, bias=False,groups=patch_groups)
         self.bn1 = nn.BatchNorm2d(planes // self.expansion)
         self.conv2 = nn.Conv2d(planes // self.expansion, planes // self.expansion, kernel_size=3, stride=stride,
-                               padding=1, bias=False,groups=patch_groups)
+                               padding=1, bias=False, groups=patch_groups)
         self.bn2 = nn.BatchNorm2d(planes // self.expansion)
         self.conv3 = nn.Conv2d(planes // self.expansion, planes, kernel_size=1, bias=False,groups=patch_groups)
         self.bn3 = nn.BatchNorm2d(planes)
@@ -260,7 +260,7 @@ class Bottleneck_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        # ratio = 0.3
+        # ratio = 0.585
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
@@ -280,7 +280,7 @@ class Bottleneck_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
-        # ratio = 0.3
+        # ratio = 0.585
         out = out * mask2
         c_in = out.shape[1]
         out = self.conv2(out)
@@ -391,7 +391,7 @@ class sarModule(nn.Module):
             x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
-            x_refine = self.refine_module[i](x_refine, mask, inference=False) if i!=0 else self.refine_module[i](x, mask, inference=False)
+            x_refine = self.refine_module[i](x_refine, mask, inference=inference) if i!=0 else self.refine_module[i](x, mask, inference=inference)
         if self.alpha > 1:
             x_refine = self.refine_transform(x_refine)
         _,_,h,w = x_refine.shape
@@ -410,7 +410,7 @@ class sarModule(nn.Module):
             mask, _flops = self.mask_gen[i].forward_calc_flops(x_base, temperature=temperature)
             _masks.append(mask)
             flops += _flops
-            x_refine, _flops = self.refine_module[i].forward_calc_flops(x_refine, mask, inference=False) if i!=0 else self.refine_module[i].forward_calc_flops(x, mask, inference=False)
+            x_refine, _flops = self.refine_module[i].forward_calc_flops(x_refine, mask, inference=inference) if i!=0 else self.refine_module[i].forward_calc_flops(x, mask, inference=inference)
             flops += _flops
 
         _,c,h,w = x_refine.shape
@@ -686,8 +686,11 @@ if __name__ == "__main__":
         print(len(_masks))
         print(_masks[9].shape)
         print(flops / 1e9)
-        # y1 = sar_res(x,inference=True)
-        # print((y-y1).abs().sum())
+        # y2 = sar_res(x, inference=False)[0]
+        # y1 = sar_res(x,inference=True)[0]
+        # print(torch.equal(y1,y2))
+        # print((y2 - y1).abs().sum())
+
 
     # group = 1
     # x = torch.rand(1,256,56,56)
