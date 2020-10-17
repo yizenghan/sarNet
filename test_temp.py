@@ -16,21 +16,29 @@ def adjust_target_rate(epoch):
         target_rate = args_target_rate
     return target_rate
 
-t0 = 10.0
+t0 = 5.0
 len_epoch = 1252
-def adjust_gs_temperature(epoch, step, len_epoch, t0):
-    alpha = math.pow(0.01/t0, 1/(args_epochs*len_epoch))
-    temp = math.pow(alpha, epoch*len_epoch+step)*t0
+def adjust_gs_temperature(epoch, step, len_epoch,temp_scheduler='linear'):
+    T_total = args_epochs * len_epoch
+    T_cur = epoch * len_epoch + step
+    if temp_scheduler == 'exp':
+        alpha = math.pow(0.01/t0, 1/(args_epochs*len_epoch))
+        temp = math.pow(alpha, epoch*len_epoch+step)*t0
+    elif temp_scheduler == 'linear':
+        temp = (t0 - 0.01) * (1 - T_cur / T_total) + 0.01
+    else:
+        temp = 0.5 * (t0-0.01) * (1 + math.cos(math.pi * T_cur / T_total)) + 0.01
     return temp
 
 t = []
 
 for i in range(args_epochs):
     for j in range(len_epoch):
-        t.append(adjust_gs_temperature(i, j, len_epoch, t0))
+        t.append(adjust_gs_temperature(i, j, len_epoch,temp_scheduler='cosine'))
 
 print(t[-1])
-plt.plot(t[:55*len_epoch])
+plt.plot(t)
 plt.show()
+plt.savefig('tem.png')
 # for i in range(110):
 #     print(adjust_target_rate(i))

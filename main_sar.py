@@ -105,7 +105,8 @@ parser.add_argument('--multiprocessing_distributed', action='store_true',
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
 
-parser.add_argument('--t0', default=0.5, type=float, metavar='M', help='momentum')
+parser.add_argument('--t0', default=5.0, type=float, metavar='M', help='momentum')
+parser.add_argument('--t_last', default=0.01, type=float, metavar='M', help='momentum')
 parser.add_argument('--target_rate', default=0.5, type=float, metavar='M', help='momentum')
 parser.add_argument('--lambda_act', default=1.0, type=float, metavar='M', help='momentum')
 parser.add_argument('--temp', default=0.1, type=float, metavar='M', help='momentum')
@@ -556,7 +557,7 @@ def adaptive_inferece(val_loader, model, criterion, args):
 
             ### Compute output single crop
             # output = model(input)
-            output, _masks, flops = model.module.forward_calc_flops(input, temperature=0.01, inference=False)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.t_last, inference=False)
             # for i in range(len(_masks)):
             #     hhh = (_masks[i] > 0.99).float()
             #     print(hhh.shape, hhh.sum()/_masks[i].numel())
@@ -660,12 +661,12 @@ def adjust_gs_temperature(epoch, step, len_epoch, args):
     T_total = args.epochs * len_epoch
     T_cur = epoch * len_epoch + step
     if args.temp_scheduler == 'exp':
-        alpha = math.pow(0.01/args.t0, 1/(args.epochs*len_epoch))
+        alpha = math.pow(args.t_last/args.t0, 1/(args.epochs*len_epoch))
         args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
     elif args.temp_scheduler == 'linear':
-        args.temp = (args.t0 - 0.01) * (1 - T_cur / T_total) + 0.01
+        args.temp = (args.t0 - args.t_last) * (1 - T_cur / T_total) + args.t_last
     else:
-        args.temp = 0.5 * (args.t0-0.01) * (1 + math.cos(math.pi * T_cur / T_total)) + 0.01
+        args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / T_total)) + args.t_last
 
 def adjust_target_rate(epoch, args):
     if not args.dynamic_rate:

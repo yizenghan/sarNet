@@ -359,10 +359,10 @@ class maskGen(nn.Module):
         c_in = gates.shape[1]
         gates = self.fc_gs(gates)
         flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] / self.groups
-        gates = gates.view(x.shape[0],2,self.groups,self.mask_size,self.mask_size)
+        gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
         # print(temperature)
         gates = self.gs(gates, temp=temperature, force_hard=True)
-        gates = gates[:,1,:,:,:]
+        gates = gates[:,:,1,:,:]
         return gates, flops
 
 class sarModule(nn.Module):
@@ -712,7 +712,7 @@ if __name__ == "__main__":
         # print(model)
     x = torch.rand(1,3,224,224)
     sar_res.eval()
-    y, _masks = sar_res(x,inference=False,temperature=1e-8)
+    # y, _masks = sar_res(x,inference=False,temperature=1e-8)
     # sar_res.train()
     # y2, _masks = sar_res(x,inference=False,temperature=1e-8)
     # print((y-y2).abs().sum())
@@ -720,7 +720,7 @@ if __name__ == "__main__":
     y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
     print(len(_masks))
     for i in range(len(_masks)):
-        print(_masks[i].shape)
+        print(_masks[i])
     print(flops / 1e9)
         # y1 = sar_res(x,inference=True)
         # print((y-y1).abs().sum())
