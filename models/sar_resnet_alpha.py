@@ -273,7 +273,7 @@ class Bottleneck_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        # ratio = 0.5
+        # ratio = 0.283
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
@@ -293,7 +293,8 @@ class Bottleneck_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
-        # ratio = 0.5
+        # ratio = 0.283
+        # print(ratio)
         out = out * mask2
         c_in = out.shape[1]
         out = self.conv2(out)
@@ -708,55 +709,11 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    sar_res = sar_resnet_alpha(depth=50, patch_groups=1, width=1, alpha=2, base_scale=2)
+    sar_res = sar_resnet_alpha(depth=50, patch_groups=4, width=1, alpha=2, base_scale=2)
     # with torch.no_grad():
         
         # print(model)
     x = torch.rand(1,3,224,224)
     sar_res.eval()
-    y, _masks = sar_res(x,inference=False,temperature=1e-8)
-    # sar_res.train()
-    # y2, _masks = sar_res(x,inference=False,temperature=1e-8)
-    # print((y-y2).abs().sum())
-
-    # y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-    # print(len(_masks))
-    # for i in range(len(_masks)):
-    #     print(_masks[i])
-    # print(flops / 1e9)
-        # y1 = sar_res(x,inference=True)
-        # print((y-y1).abs().sum())
-
-    # group = 1
-    # x = torch.rand(1,256,56,56)
-    
-    # mask = torch.zeros(1,group, 7, 7)
-    # # mask[0,0,0,0]=1
-    # # mask[0,0,1,1]=1
-    # # mask[0,1,1,0]=1
-    
-
-    # layer = Bottleneck_refine(256, 256, stride=1, downsample=None, last_relu=True, patch_groups=group)
-    # layer.eval()
-    # with torch.no_grad():
-    #     y = layer(x, mask,inference=False)
-    #     y2 = layer(x, mask,inference=True)
-        
-    #     print((y-y2).abs().sum())
-
-# if __name__ == "__main__":
-#     # sar_module = sarModule(block_base = Bottleneck, block_refine=Bottleneck_refine,
-#     #                         in_channels=64,out_channels=128,blocks=6,stride=2,groups=2)
-#     # # print(sar_module)
-#     # x = torch.rand(1,64,56,56)
-#     # y = sar_module(x)
-#     # print(y.shape)
-#     from op_counter import measure_model
-#     sar_res = sar_resnet(depth=101)
-#     # print(sar_res50)
-#     x = torch.rand(1,3,224,224)
-#     y = sar_res(x)
-#     print(y.shape)
-
-    # cls_ops, cls_params = measure_model(sar_res50, 224,224)
-    # print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
+    y, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+    print(flops / 1e9)

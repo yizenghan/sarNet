@@ -108,7 +108,7 @@ class Bottleneck_refine(nn.Module):
                 mask1 = mask.clone()
 
             ratio = mask1.sum() / mask1.numel()
-            ratio = 0.5
+            # ratio = 0.3
             # print(ratio)
             mask1 = F.interpolate(mask1, size=(h, w))
             # print(mask1.shape, x.shape)
@@ -128,7 +128,7 @@ class Bottleneck_refine(nn.Module):
             mask2 = F.interpolate(mask2, size=(h, w))
 
             ratio = mask2.sum() / mask2.numel()
-            ratio = 0.5
+            # ratio = 0.3
             out = out * mask2
             c_in = out.shape[1]
             out = self.conv2(out)
