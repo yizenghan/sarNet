@@ -420,7 +420,7 @@ def get_hyperparams(args, test_code=0):
 
         elif args.hyperparams_set_index == 235: # sarResNet, no label smooth, wmup, longer epochs
             args.epochs = 160
-            args.start_eval_epoch = 0
+            args.start_eval_epoch = 140
             args.batch_size = 256*4
             ### data transform
             args.autoaugment = False
