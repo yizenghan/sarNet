@@ -372,7 +372,7 @@ def get_hyperparams(args, test_code=0):
         elif args.hyperparams_set_index == 233: # sarResNet, use label smooth, wmup
             args.epochs = 110
             args.start_eval_epoch = 0
-            args.batch_size = 256*4
+            args.batch_size = 256*1
             ### data transform
             args.autoaugment = False
             args.colorjitter = True

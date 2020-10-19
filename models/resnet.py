@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 def params_count(model):
     return np.sum([p.numel() for p in model.parameters()]).item()
+
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
     'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
@@ -152,7 +153,7 @@ class ResNet(nn.Module):
         # print(params_count(self)/1e6)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -201,13 +202,13 @@ class ResNet(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        print('before layer 1:', x.shape)
+        # print('before layer 1:', x.shape)
         x = self.layer1(x)
-        print('before layer 2:', x.shape)
+        # print('before layer 2:', x.shape)
         x = self.layer2(x)
-        print('before layer 3:', x.shape)
+        # print('before layer 3:', x.shape)
         x = self.layer3(x)
-        print('before layer 4:', x.shape)
+        # print('before layer 4:', x.shape)
         x = self.layer4(x)
 
         x = self.avgpool(x)
@@ -230,7 +231,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     return model
 
 
-def resnet18(args):
+def resnet18():
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -242,7 +243,7 @@ def resnet18(args):
 
 
 
-def resnet34(args):
+def resnet34():
     r"""ResNet-34 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -254,7 +255,7 @@ def resnet34(args):
 
 
 
-def resnet50(args):
+def resnet50():
     r"""ResNet-50 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -266,7 +267,7 @@ def resnet50(args):
 
 
 
-def resnet101(args):
+def resnet101():
     r"""ResNet-101 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -277,7 +278,7 @@ def resnet101(args):
     return _resnet('resnet101', Bottleneck, [3, 4, 23, 3], pretrained = False, progress=True)
 
 
-def resnet152(args):
+def resnet152():
     r"""ResNet-152 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -287,7 +288,7 @@ def resnet152(args):
     """
     return _resnet('resnet152', Bottleneck, [3, 8, 36, 3],pretrained = False, progress=True)
 
-def resnext50_16x4d(args):
+def resnext50_16x4d():
     r"""ResNeXt-50 32x4d model from
     `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
 
@@ -299,7 +300,7 @@ def resnext50_16x4d(args):
     # kwargs['width_per_group'] = 4
     return _resnet('resnext50_32x4d', Bottleneck, [3, 4, 6, 3], pretrained = False, progress=True,groups=16,width_per_group=4)
 
-def resnext50_24x4d(args):
+def resnext50_24x4d():
     r"""ResNeXt-50 32x4d model from
     `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
 
@@ -311,7 +312,7 @@ def resnext50_24x4d(args):
     # kwargs['width_per_group'] = 4
     return _resnet('resnext50_32x4d', Bottleneck, [3, 4, 6, 3], pretrained = False, progress=True,groups=24,width_per_group=4)
 
-def resnext50_32x4d(args):
+def resnext50_32x4d():
     r"""ResNeXt-50 32x4d model from
     `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
 
@@ -323,10 +324,10 @@ def resnext50_32x4d(args):
     # kwargs['width_per_group'] = 4
     return _resnet('resnext50_32x4d', Bottleneck, [3, 4, 6, 3], pretrained = False, progress=True,groups=32,width_per_group=4)
 
-def resnext101_32x4d(args):
+def resnext101_32x4d():
     return _resnet('resnext101_32x8d', Bottleneck, [3, 4, 23, 3],pretrained = False, progress=True,groups=32,width_per_group=4)
 
-def resnext101_32x8d(args):
+def resnext101_32x8d():
     r"""ResNeXt-101 32x8d model from
     `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
 
@@ -340,7 +341,7 @@ def resnext101_32x8d(args):
 
 
 
-def wide_resnet50_2(args):
+def wide_resnet50_2():
     r"""Wide ResNet-50-2 model from
     `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_
 
@@ -355,7 +356,7 @@ def wide_resnet50_2(args):
     """
     return _resnet('wide_resnet50_2', Bottleneck, [3, 4, 6, 3],pretrained = False, progress=True, width_per_group=64*2)
 
-def wide_resnet50_15(args):
+def wide_resnet50_15():
     r"""Wide ResNet-50-2 model from
     `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_
 
@@ -370,7 +371,7 @@ def wide_resnet50_15(args):
     """
     return _resnet('wide_resnet50_15', Bottleneck, [3, 4, 6, 3],pretrained = False, progress=True, width_per_group=64*1.5)
 
-def wide_resnet101_2(args):
+def wide_resnet101_2():
     r"""Wide ResNet-101-2 model from
     `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_
 

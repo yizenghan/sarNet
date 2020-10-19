@@ -1,5 +1,5 @@
-import moxing as mox
-mox.file.shift('os', 'mox')
+# import moxing as mox
+# mox.file.shift('os', 'mox')
 
 import os
 import argparse
