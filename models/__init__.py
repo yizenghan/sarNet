@@ -17,3 +17,5 @@ from .sar_resnet_baseOnly import *
 
 from .sar_resnet_centerCrop import *
 from .sar_resnet_uniform import *
+
+from .sar_resnet_refineOnly import *
