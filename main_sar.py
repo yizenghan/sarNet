@@ -1,5 +1,5 @@
-import moxing as mox
-mox.file.shift('os', 'mox')
+# import moxing as mox
+# mox.file.shift('os', 'mox')
 
 import os
 import argparse
@@ -490,6 +490,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         else:
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
         
+
         act_rate = 0.0
         loss_act_rate = 0.0
         # print(len(_masks))
@@ -505,6 +506,19 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         else:
             loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
         
+        # dist.all_reduce(acc1)
+        # acc1 /= args.world_size
+        # dist.all_reduce(acc5)
+        # acc5 /= args.world_size
+        # dist.all_reduce(loss)
+        # loss /= args.world_size
+        # dist.all_reduce(loss_cls)
+        # loss_cls /= args.world_size
+        # dist.all_reduce(loss_act_rate)
+        # loss_act_rate /= args.world_size
+        # dist.all_reduce(act_rate)
+        # act_rate /= args.world_size
+
         act_rates.update(act_rate.item(), input.size(0))
         losses_act.update(loss_act_rate.item(),input.size(0))
         losses_cls.update(loss_cls.item(), input.size(0))
@@ -571,11 +585,21 @@ def adaptive_inferece(val_loader, model, criterion, args):
                 
             act_rate = torch.mean(act_rate/len(_masks))
             loss = loss_cls
-            
+            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
+
+            dist.all_reduce(acc1)
+            acc1 /= args.world_size
+            dist.all_reduce(acc5)
+            acc5 /= args.world_size
+            dist.all_reduce(loss)
+            loss /= args.world_size
+            dist.all_reduce(loss_cls)
+            loss_cls /= args.world_size
+            dist.all_reduce(act_rate)
+            act_rate /= args.world_size
+
             act_rates.update(act_rate.item(), input.size(0))
             losses_cls.update(loss_cls.item(), input.size(0))
-
-            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
             losses.update(loss.data.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             top5.update(acc5.item(), input.size(0))
@@ -627,19 +651,25 @@ def validate(val_loader, model, criterion, args, target_rate):
             loss_act_rate = torch.mean(loss_act_rate/len(_masks))
             loss_act_rate = args.lambda_act * loss_act_rate
             loss = loss_cls + loss_act_rate
-            
+            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
+
+            dist.all_reduce(acc1)
+            acc1 /= args.world_size
+            dist.all_reduce(acc5)
+            acc5 /= args.world_size
+            dist.all_reduce(loss)
+            loss /= args.world_size
+            dist.all_reduce(loss_cls)
+            loss_cls /= args.world_size
+            dist.all_reduce(loss_act_rate)
+            loss_act_rate /= args.world_size
+            dist.all_reduce(act_rate)
+            act_rate /= args.world_size
+
             act_rates.update(act_rate.item(), input.size(0))
             losses_act.update(loss_act_rate.item(),input.size(0))
             losses_cls.update(loss_cls.item(), input.size(0))
 
-            # Compute output ten crop
-            # bs, ncrops, c, h, w = input.size()
-            # output_ncrop = model(input.view(-1, c, h, w))
-            # output = output_ncrop.view(bs, ncrops, -1).mean(1)
-            # loss = criterion(output, target)
-
-            ### Measure accuracy and record loss
-            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
             losses.update(loss.data.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             top5.update(acc5.item(), input.size(0))
