@@ -44,7 +44,7 @@ parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/test
                     help='path to save result and checkpoint (default: results/savedir)')
 parser.add_argument('--dataset', metavar='DATASET', default='imagenet', choices=['cifar10', 'cifar100', 'imagenet'],
                     help='dataset')
-parser.add_argument('-j', '--workers', default=64, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=96, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
