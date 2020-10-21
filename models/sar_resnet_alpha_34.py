@@ -96,11 +96,11 @@ class BasicBlock_refine(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None, last_relu=True, patch_groups=1, base_scale=2, is_first=True):
         super(BasicBlock_refine, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes // self.expansion, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
+                               padding=1, bias=False, groups=patch_groups)
         self.bn1 = nn.BatchNorm2d(planes // self.expansion)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(planes // self.expansion, planes // self.expansion, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
+                               padding=1, bias=False, groups=patch_groups)
         self.bn2 = nn.BatchNorm2d(planes // self.expansion)
         self.downsample = downsample
 
