@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -11,10 +11,11 @@ __all__ = ['sar_resnet_preact']
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, last_relu=True,patch_groups=1, 
+    def __init__(self, inplanes, planes, stride=1, downsample=None,patch_groups=1, 
                  base_scale=2, is_first=False):
         super(Bottleneck, self).__init__()
         self.bn1 = nn.BatchNorm2d(inplanes)
+        self.relu = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(inplanes, planes // self.expansion, kernel_size=1, bias=False)
         
         self.bn2 = nn.BatchNorm2d(planes // self.expansion)
@@ -23,8 +24,6 @@ class Bottleneck(nn.Module):
         
         self.bn3 = nn.BatchNorm2d(planes // self.expansion)
         self.conv3 = nn.Conv2d(planes // self.expansion, planes, kernel_size=1, bias=False)
-        
-        self.relu = nn.ReLU(inplace=True)
         
         self.downsample = downsample
         self.have_pool = False
@@ -38,7 +37,6 @@ class Bottleneck(nn.Module):
                 self.have_1x1conv2d = True
         
         self.stride = stride
-        self.last_relu = last_relu
 
     def forward(self, x):
         if self.first_downsample is not None:
@@ -110,7 +108,7 @@ class Bottleneck(nn.Module):
 class Bottleneck_refine(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, last_relu=True,patch_groups=1, base_scale=2, is_first = True):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, patch_groups=1, base_scale=2, is_first = True):
         super(Bottleneck_refine, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes // self.expansion, kernel_size=1, bias=False,groups=patch_groups)
         self.bn1 = nn.BatchNorm2d(inplanes)
@@ -123,7 +121,6 @@ class Bottleneck_refine(nn.Module):
         self.downsample = downsample
 
         self.stride = stride
-        self.last_relu = last_relu
         self.patch_groups = patch_groups
 
     def forward(self, x, mask, inference=False):
@@ -232,11 +229,11 @@ class maskGen(nn.Module):
         self.conv3x3_gs = nn.Sequential(
             nn.BatchNorm2d(inplanes),
             nn.ReLU(inplace=True),
-            nn.Conv2d(inplanes, groups*4,kernel_size=3, padding=1, stride=1, bias=False, groups = groups)
+            nn.Conv2d(inplanes, groups*4,kernel_size=3, padding=1, stride=1, bias=False, groups = groups),
+            nn.BatchNorm2d(groups*4),
+            nn.ReLU(inplace=True)
         )
         self.pool = nn.AdaptiveAvgPool2d((mask_size,mask_size))
-        self.bn2 = nn.BatchNorm2d(groups*4)
-        self.relu = nn.ReLU(inplace=True)
         self.fc_gs = nn.Conv2d(groups*4,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = groups)
         self.fc_gs.bias.data[:2*groups:2] = 1.0
         self.fc_gs.bias.data[1:2*groups+1:2] = 10.0      
@@ -245,10 +242,8 @@ class maskGen(nn.Module):
     def forward(self, x, temperature=1.0):
         gates = self.conv3x3_gs(x)
         gates = self.pool(gates)
-        gates = self.fc_gs(self.relu(self.bn2(gates)))
-
+        gates = self.fc_gs(gates)
         gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
-
         gates = self.gs(gates, temp=temperature, force_hard=True)
         gates = gates[:,:,1,:,:]
         return gates
@@ -263,7 +258,7 @@ class maskGen(nn.Module):
         gates = self.pool(gates)
 
         c_in = gates.shape[1]
-        gates = self.fc_gs(self.relu(self.bn2(gates)))
+        gates = self.fc_gs(gates)
         flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] / self.groups
         gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
         # print(temperature)
@@ -285,20 +280,18 @@ class sarModule(nn.Module):
         for _ in range(blocks - 1):
             mask_gen_list.append(maskGen(groups=groups,inplanes=out_channels,mask_size=mask_size))
         self.mask_gen = nn.ModuleList(mask_gen_list)
-        self.base_module = self._make_layer(block_base, in_channels, out_channels, blocks - 1, 2, last_relu=False, base_scale=base_scale)
-        refine_last_relu = True if alpha > 1 else False
-        self.refine_module = self._make_layer(block_refine, in_channels, out_channels // alpha, blocks - 1, 1, last_relu=refine_last_relu, base_scale=base_scale)
+        self.base_module = self._make_layer(block_base, in_channels, out_channels, blocks - 1, 2, base_scale=base_scale)
+        self.refine_module = self._make_layer(block_refine, in_channels, out_channels // alpha, blocks - 1, 1, base_scale=base_scale)
         self.alpha = alpha
         if alpha > 1:
             self.refine_transform = nn.Sequential(
                 nn.BatchNorm2d(out_channels // alpha),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(out_channels // alpha, out_channels, kernel_size=1, bias=False),
-                
             )
         self.fusion = self._make_layer(block_base, out_channels, out_channels, 1, stride=stride, base_scale=base_scale)
 
-    def _make_layer(self, block, inplanes, planes, blocks, stride=1, last_relu=True, base_scale=2):
+    def _make_layer(self, block, inplanes, planes, blocks, stride=1, base_scale=2):
         downsample = []
         if stride != 1:
             downsample.append(nn.AvgPool2d(3, stride=2, padding=1))
@@ -315,9 +308,8 @@ class sarModule(nn.Module):
         else:
             layers.append(block(inplanes, planes, stride, downsample,patch_groups=self.patch_groups, 
                              base_scale=base_scale, is_first = True))
-            for i in range(1, blocks):
+            for _ in range(1, blocks):
                 layers.append(block(planes, planes,
-                                    last_relu=last_relu if i == blocks - 1 else True, 
                                     patch_groups=self.patch_groups, base_scale=base_scale, is_first = False))
 
         return nn.ModuleList(layers)
@@ -384,8 +376,8 @@ class sarResNet(nn.Module):
         self.l_conv2 = nn.Conv2d(num_channels[0] // alpha, num_channels[0], kernel_size=1, stride=1, bias=False)
         self.bn_l2 = nn.BatchNorm2d(num_channels[0])
 
-        self.bl_init = nn.Conv2d(num_channels[0], num_channels[0], kernel_size=1, stride=1, bias=False)
-        self.bn_bl_init = nn.BatchNorm2d(num_channels[0])
+        # self.bl_init = nn.Conv2d(num_channels[0], num_channels[0], kernel_size=1, stride=1, bias=False)
+        # self.bn_bl_init = nn.BatchNorm2d(num_channels[0])
 
         self.layer1 = sarModule(block_base, block_refine, num_channels[0], num_channels[0]*block_base.expansion, 
                                layers[0], stride=2, groups=patch_groups,mask_size=mask_size, alpha=alpha, base_scale=base_scale)
@@ -450,8 +442,8 @@ class sarResNet(nn.Module):
         lx = self.bn_l2(lx)
         x = self.relu(bx + lx)
         x = self.bl_init(x)
-        x = self.bn_bl_init(x)
-        x = self.relu(x)
+        # x = self.bn_bl_init(x)
+        # x = self.relu(x)
 
         # print('before layer 1:', x.shape)
         _masks = []
@@ -508,8 +500,8 @@ class sarResNet(nn.Module):
         c_in = x.shape[1]
         x = self.bl_init(x)
         flops += c_in * x.shape[1] * x.shape[2] * x.shape[3] * self.bl_init.weight.shape[2]*self.bl_init.weight.shape[3]
-        x = self.bn_bl_init(x)
-        x = self.relu(x)
+        # x = self.bn_bl_init(x)
+        # x = self.relu(x)
 
         _masks = []
         x, mask, _flops = self.layer1.forward_calc_flops(x, temperature=temperature, inference=inference)
@@ -555,6 +547,7 @@ if __name__ == "__main__":
     
     # print(sar_res)
     sar_res = sar_resnet_preact(depth=50, patch_groups=4, width=1, alpha=2, base_scale=4)
+    print(sar_res)
     # with torch.no_grad():
         
         # print(model)
