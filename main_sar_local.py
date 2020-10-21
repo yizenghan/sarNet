@@ -237,7 +237,12 @@ def main_worker(gpu, ngpus_per_node, args):
     model_type = args.cfg['model'].pop('type')
     model = eval(model_type)(**args.cfg['model'])
     print('Model Struture:', str(model))
-
+    if args.train_on_cloud:
+        with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
+            f.write(str(model))
+    else:
+        with open(args.train_url+'model_arch.txt', "w") as f:
+            f.write(str(model))
     ### Calculate FLOPs & Param
     # params = 0
     # import operator

@@ -8,7 +8,7 @@ model = dict(
     base_scale=2
 )
 train_cfg = dict(
-    hyperparams_set_index=3024,
+    hyperparams_set_index=2333,
     crop_size=224,
 )
 test_cfg = dict(

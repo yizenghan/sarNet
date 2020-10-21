@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from gumbel_softmax import GumbleSoftmax
+from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -376,7 +376,7 @@ class sarResNet(nn.Module):
         self.l_conv2 = nn.Conv2d(num_channels[0] // alpha, num_channels[0], kernel_size=1, stride=1, bias=False)
         self.bn_l2 = nn.BatchNorm2d(num_channels[0])
 
-        # self.bl_init = nn.Conv2d(num_channels[0], num_channels[0], kernel_size=1, stride=1, bias=False)
+        self.bl_init = nn.Conv2d(num_channels[0], num_channels[0], kernel_size=1, stride=1, bias=False)
         # self.bn_bl_init = nn.BatchNorm2d(num_channels[0])
 
         self.layer1 = sarModule(block_base, block_refine, num_channels[0], num_channels[0]*block_base.expansion, 
@@ -546,7 +546,7 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    sar_res = sar_resnet_preact(depth=50, patch_groups=4, width=1, alpha=2, base_scale=4)
+    sar_res = sar_resnet_preact(depth=50, patch_groups=4, width=1, alpha=2, base_scale=2)
     print(sar_res)
     # with torch.no_grad():
         
