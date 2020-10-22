@@ -414,7 +414,7 @@ def get_hyperparams(args, test_code=0):
             ### lr scheduler
             args.scheduler = 'cosine'
             args.warmup_epoch = 5
-            args.warmup_lr = 0.0
+            args.warmup_lr = 0.025
             ### Mixup
             args.mixup = 0.0
             return args

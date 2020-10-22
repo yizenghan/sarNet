@@ -713,7 +713,7 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    sar_res = sar_resnet_alpha(depth=50, patch_groups=2, width=1, alpha=2, base_scale=2)
+    sar_res = sar_resnet_alpha(depth=50, patch_groups=4, width=1, alpha=2, base_scale=2)
     # with torch.no_grad():
         
         # print(model)
