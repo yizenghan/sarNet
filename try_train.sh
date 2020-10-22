@@ -1,7 +1,7 @@
-CUDA_VISIBLE_DEVICES=2,3 \
+CUDA_VISIBLE_DEVICES=0,1 \
 python main_sar_local.py \
 --test_code 0 \
---config configs/_baseAlpha_pre50_g4a2s2_ls_warmup_local.py \
+--config configs/__freFuse50_g1a1s2m71_ls_warmup.py \
 --train_url ./log/test/ \
 --no_train_on_cloud \
 --use_amp 0 \

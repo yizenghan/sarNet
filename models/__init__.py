@@ -28,3 +28,5 @@ from .oct_resnet import *
 from .sar_preAct_resnet import *
 
 from .sar_resnet_baseAlpha import *
+
+from.sar_resnet_freFuse import *

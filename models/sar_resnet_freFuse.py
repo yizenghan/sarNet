@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from gumbel_softmax import GumbleSoftmax
+from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -217,7 +217,7 @@ class BasicBlock(nn.Module):
             b,c,h,w = x.shape
             mask, _flops = self.mask_gen.forward_calc_flops(x, temperature=temperature)
             ratio = mask.sum() / mask.numel()
-            ratio = 0.3
+            # ratio = 0.3
             flops += _flops
             g = mask.shape[1]
             m_h = mask.shape[2]
@@ -262,7 +262,7 @@ class Bottleneck(nn.Module):
                  do_patch=False, patch_groups=1, base_scale=2, mask_size=7, alpha=1):
         super(Bottleneck, self).__init__()
         self.do_patch = do_patch
-        print(do_patch, mask_size)
+        # print(do_patch, mask_size)
         if not do_patch:
             self.conv1 = nn.Conv2d(inplanes, planes // self.expansion, kernel_size=1, bias=False)
             self.bn1 = nn.BatchNorm2d(planes // self.expansion)
@@ -509,7 +509,7 @@ class Bottleneck(nn.Module):
             b,c,h,w = x.shape
             mask, _flops = self.mask_gen.forward_calc_flops(x, temperature=temperature)
             ratio = mask.sum() / mask.numel()
-            ratio = 0.3
+            # ratio = 0.3
             flops += _flops
 
             g = mask.shape[1]
@@ -553,7 +553,7 @@ class Bottleneck(nn.Module):
             return out, mask, flops
         
 class sarResNet(nn.Module):
-    def __init__(self, block, layers, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1, base_scale=2):
+    def __init__(self, block, layers, num_classes=1000, patch_groups=1, mask_size1=7,mask_size2=1, width=1.0, alpha=1, base_scale=2):
         num_channels = [64,128,256, 512]
         # print(num_channels)
         self.inplanes = 64
@@ -581,15 +581,15 @@ class sarResNet(nn.Module):
         self.patch_groups = patch_groups
         self.layer1 = self._make_layer(block, num_channels[0], num_channels[0]*block.expansion, 
                     layers[0], stride=1,
-                    mask_size=mask_size, alpha=alpha, base_scale=base_scale, do_patch=True)
+                    mask_size=mask_size1, alpha=alpha, base_scale=base_scale, do_patch=True)
 
         self.layer2 = self._make_layer(block, num_channels[0]*block.expansion,
                     num_channels[1]*block.expansion, layers[1], stride=2, 
-                    mask_size=mask_size, alpha=alpha, base_scale=base_scale, do_patch=True)
+                    mask_size=mask_size1, alpha=alpha, base_scale=base_scale, do_patch=True)
         
         self.layer3 = self._make_layer(block, num_channels[1]*block.expansion,
                     num_channels[2]*block.expansion, layers[2], stride=2, 
-                    mask_size=1, alpha=alpha, base_scale=2, do_patch=True)
+                    mask_size=mask_size2, alpha=alpha, base_scale=2, do_patch=True)
 
         self.layer4 = self._make_layer(
             block, num_channels[2]*block.expansion, num_channels[3]*block.expansion, 
@@ -751,7 +751,7 @@ class sarResNet(nn.Module):
 
         return x, _masks, flops
 
-def sar_resnet_freFuse(depth, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1, base_scale=2):
+def sar_resnet_freFuse(depth, num_classes=1000, patch_groups=1, mask_size1=7, mask_size2=2, width=1.0, alpha=1, base_scale=2):
     layers = {
         34: [3, 4, 6, 3],
         50: [3, 4, 6, 3],
@@ -760,8 +760,8 @@ def sar_resnet_freFuse(depth, num_classes=1000, patch_groups=1, mask_size=7, wid
     }[depth]
     block = BasicBlock if depth == 34 else Bottleneck
     model = sarResNet(block=block, layers=layers, 
-                      num_classes=num_classes, patch_groups=patch_groups, mask_size=mask_size, width=width, 
-                      alpha=alpha, base_scale=base_scale)
+                      num_classes=num_classes, patch_groups=patch_groups, mask_size1=mask_size1, mask_size2=mask_size2, 
+                      width=width, alpha=alpha, base_scale=base_scale)
     return model
 
 
@@ -830,7 +830,7 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    sar_res = sar_resnet_freFuse(depth=101, patch_groups=2, width=1, alpha=2, base_scale=2)
+    sar_res = sar_resnet_freFuse(depth=50, patch_groups=4, width=1, alpha=4, base_scale=2)
     # with torch.no_grad():
         
     # print(sar_res)
