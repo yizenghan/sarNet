@@ -523,7 +523,17 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         # loss_act_rate /= args.world_size
         # dist.all_reduce(act_rate)
         # act_rate /= args.world_size
-
+        if math.isnan(loss.item()):
+            optimizer.zero_grad()
+            continue
+        elif math.isnan(loss_act_rate.item()):
+            optimizer.zero_grad()
+            if args.use_amp:
+                with amp.scale_loss(loss_cls, optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss_cls.backward()
+            continue 
         act_rates.update(act_rate.item(), input.size(0))
         losses_act.update(loss_act_rate.item(),input.size(0))
         losses_cls.update(loss_cls.item(), input.size(0))

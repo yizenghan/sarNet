@@ -44,7 +44,7 @@ parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/test
                     help='path to save result and checkpoint (default: results/savedir)')
 parser.add_argument('--dataset', metavar='DATASET', default='imagenet', choices=['cifar10', 'cifar100', 'imagenet'],
                     help='dataset')
-parser.add_argument('-j', '--workers', default=96, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=64, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
@@ -514,13 +514,23 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
             act_rate += torch.mean(act)
             loss_act_rate += torch.pow(target_rate-torch.mean(act), 2)
         act_rate = torch.mean(act_rate/len(_masks))
-        loss_act_rate = torch.mean(loss_act_rate/len(_masks))
-        loss_act_rate = args.lambda_act * loss_act_rate
+        loss_act_rate = args.lambda_act * torch.mean(loss_act_rate/len(_masks))
         if args.dynamic_rate:
             loss = loss_cls + loss_act_rate
         else:
             loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
         
+        if math.isnan(loss.item()):
+            optimizer.zero_grad()
+            continue
+        elif math.isnan(loss_act_rate.item()):
+            optimizer.zero_grad()
+            if args.use_amp:
+                with amp.scale_loss(loss_cls, optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss_cls.backward()
+            continue 
         # dist.all_reduce(acc1)
         # acc1 /= args.world_size
         # dist.all_reduce(acc5)
@@ -533,7 +543,6 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         # loss_act_rate /= args.world_size
         # dist.all_reduce(act_rate)
         # act_rate /= args.world_size
-
         act_rates.update(act_rate.item(), input.size(0))
         losses_act.update(loss_act_rate.item(),input.size(0))
         losses_cls.update(loss_cls.item(), input.size(0))
@@ -601,7 +610,6 @@ def adaptive_inferece(val_loader, model, criterion, args):
             act_rate = torch.mean(act_rate/len(_masks))
             loss = loss_cls
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
-
             dist.all_reduce(acc1)
             acc1 /= args.world_size
             dist.all_reduce(acc5)
@@ -612,9 +620,9 @@ def adaptive_inferece(val_loader, model, criterion, args):
             loss_cls /= args.world_size
             dist.all_reduce(act_rate)
             act_rate /= args.world_size
-
             act_rates.update(act_rate.item(), input.size(0))
             losses_cls.update(loss_cls.item(), input.size(0))
+            
             losses.update(loss.data.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             top5.update(acc5.item(), input.size(0))
@@ -667,7 +675,6 @@ def validate(val_loader, model, criterion, args, target_rate):
             loss_act_rate = args.lambda_act * loss_act_rate
             loss = loss_cls + loss_act_rate
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
-
             dist.all_reduce(acc1)
             acc1 /= args.world_size
             dist.all_reduce(acc5)
@@ -680,11 +687,19 @@ def validate(val_loader, model, criterion, args, target_rate):
             loss_act_rate /= args.world_size
             dist.all_reduce(act_rate)
             act_rate /= args.world_size
-
+            
             act_rates.update(act_rate.item(), input.size(0))
             losses_act.update(loss_act_rate.item(),input.size(0))
             losses_cls.update(loss_cls.item(), input.size(0))
 
+            # Compute output ten crop
+            # bs, ncrops, c, h, w = input.size()
+            # output_ncrop = model(input.view(-1, c, h, w))
+            # output = output_ncrop.view(bs, ncrops, -1).mean(1)
+            # loss = criterion(output, target)
+
+            ### Measure accuracy and record loss
+            
             losses.update(loss.data.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             top5.update(acc5.item(), input.size(0))

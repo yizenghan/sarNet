@@ -273,7 +273,7 @@ class Bottleneck_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        ratio = 0.3
+        # ratio = 0.923
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
@@ -293,7 +293,7 @@ class Bottleneck_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
-        ratio = 0.3
+        # ratio = 0.923
         # print(ratio)
         out = out * mask2
         c_in = out.shape[1]
@@ -323,9 +323,10 @@ class maskGen(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.pool = nn.AdaptiveAvgPool2d((mask_size,mask_size))
+        print(mask_size)
         self.fc_gs = nn.Conv2d(groups*4,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = groups)
-        self.fc_gs.bias.data[:2*groups:2] = 1.0
-        self.fc_gs.bias.data[1:2*groups+1:2] = 10.0      
+        self.fc_gs.bias.data[:2*groups:2] = 0.1
+        self.fc_gs.bias.data[1:2*groups+1:2] = 5.0      
         self.gs = GumbleSoftmax()
 
     def forward(self, x, temperature=1.0):
@@ -492,7 +493,7 @@ class sarResNet(nn.Module):
                                num_channels[1]*block_base.expansion, layers[1], stride=2, groups=patch_groups,mask_size=mask_size, alpha=alpha, base_scale=base_scale)
         
         self.layer3 = sarModule(block_base, block_refine, num_channels[1]*block_base.expansion,
-                               num_channels[2]*block_base.expansion, layers[2], stride=1, groups=patch_groups,mask_size=2, alpha=alpha, base_scale=2)
+                               num_channels[2]*block_base.expansion, layers[2], stride=1, groups=patch_groups,mask_size=1, alpha=alpha, base_scale=2)
         self.layer4 = self._make_layer(
             block_base, num_channels[2]*block_base.expansion, num_channels[3]*block_base.expansion, layers[3], stride=2)
         self.gappool = nn.AdaptiveAvgPool2d(1)
@@ -608,14 +609,17 @@ class sarResNet(nn.Module):
 
         _masks = []
         x, mask, _flops = self.layer1.forward_calc_flops(x, temperature=temperature, inference=inference)
+        # print(_flops)
         _masks.extend(mask)
         flops += _flops
         
         x, mask, _flops = self.layer2.forward_calc_flops(x, temperature=temperature, inference=inference)
+        # print(_flops)
         _masks.extend(mask)
         flops += _flops
 
         x, mask, _flops = self.layer3.forward_calc_flops(x, temperature=temperature, inference=inference)
+        # print(_flops)
         flops += _flops
         _masks.extend(mask)
 
@@ -716,4 +720,6 @@ if __name__ == "__main__":
     x = torch.rand(1,3,224,224)
     sar_res.eval()
     y, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+    for i in range(len(_masks)):
+        print(_masks[i])
     print(flops / 1e9)

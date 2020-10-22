@@ -1,8 +1,8 @@
 CUDA_VISIBLE_DEVICES=4,5,6,7 \
 python main_sar_local.py \
 --test_code 0 \
---config configs/_baseAlpha50_g4a2s2_ls_warmup_local.py \
---train_url ./log/_baseAlpha_g4a2s2_ls_warmup_nota/ \
+--config configs/_mask1_g4a2s2_ls_warmup_local.py \
+--train_url ./log/_mask1_g4a2s2_ls_warmup_nota/ \
 --no_train_on_cloud \
 --use_amp 0 \
 --target_rate 1.0 \

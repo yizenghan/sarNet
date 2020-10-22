@@ -130,7 +130,7 @@ class Bottleneck_refine(nn.Module):
 
         b,c,h,w = x.shape
         mask1 = torch.zeros((b,1,h,w),device=x.device)
-        mask1[:,0,int(h*0.14):int(h*0.86),int(w*0.14):int(h*0.86)] = 1.0 
+        mask1[:,0,int(h*0.14):int(h*0.86),int(w*0.14):int(w*0.86)] = 1.0 
         out = x * mask1
         
         out = self.conv1(out)
@@ -144,7 +144,7 @@ class Bottleneck_refine(nn.Module):
 
         _,_,h,w = out.shape
         mask2 = torch.zeros((b,1,h,w),device=out.device)
-        mask2[:,0,int(h*0.14):int(h*0.86),int(w*0.14):int(h*0.86)] = 1.0 
+        mask2[:,0,int(h*0.14):int(h*0.86),int(w*0.14):int(w*0.86)] = 1.0 
         out = out * mask2
         out = self.conv3(out)
         out = self.bn3(out)

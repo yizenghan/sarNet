@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from gumbel_softmax import GumbleSoftmax
+from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -163,7 +163,7 @@ class BasicBlock_refine(nn.Module):
             mask1 = mask.clone()
         
         ratio = mask1.sum() / mask1.numel()
-        ratio = 0.293
+        # ratio = 0.293
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
@@ -183,7 +183,7 @@ class BasicBlock_refine(nn.Module):
         mask2 = F.interpolate(mask2, size = (h,w))
 
         ratio = mask2.sum() / mask2.numel()
-        ratio = 0.293
+        # ratio = 0.293
         out = out * mask2
         c_in = out.shape[1]
         out = self.conv2(out)
