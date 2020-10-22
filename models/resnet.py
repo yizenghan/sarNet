@@ -461,7 +461,7 @@ class CifarResNet(nn.Module):
         return x
 
 
-def resnet20(args,**kwargs):
+def resnet20(**kwargs):
     """Constructs a ResNet-18 model.
 
     """
@@ -469,7 +469,7 @@ def resnet20(args,**kwargs):
     return model
 
 
-def resnet32(args,**kwargs):
+def resnet32(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
@@ -477,35 +477,35 @@ def resnet32(args,**kwargs):
     return model
 
 
-def resnet56(args,**kwargs):
+def resnet56(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
     model = CifarResNet(CifarBasicBlock, n_size=9, width=1, num_classes=args.num_classes, **kwargs)
     return model
 
-def resnet110(args,**kwargs):
+def resnet110(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
     model = CifarResNet(CifarBasicBlock, n_size=18, width=1, num_classes=args.num_classes, **kwargs)
     return model
 
-def resnet164(args,**kwargs):
+def resnet164(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
     model = CifarResNet(CifarBasicBlock, n_size=18, width=1, num_classes=args.num_classes, **kwargs)
     return model
 
-def wide_resnet_16x4(args,**kwargs):
+def wide_resnet_16x4(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
     model = CifarResNet(CifarBasicBlock, n_size=2, width=4, num_classes=args.num_classes, **kwargs)
     return model
 
-def wide_resnet_28x10(args,**kwargs):
+def wide_resnet_28x10(**kwargs):
     model = CifarResNet(block=CifarBasicBlock, n_size=4, width=10, num_classes=args.num_classes, **kwargs)
     return model
 
@@ -515,13 +515,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch resnet Training')
     args = parser.parse_args()
 
-    args.num_classes = 1000
+    args.num_classes = 10
     with torch.no_grad():
-        net = resnet34()
+        net = resnet32()
         print(net)
         
-        cls_ops, cls_params = measure_model(net, 224,224)
-        print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
+        cls_ops, cls_params = measure_model(net, 32,32)
+        print(cls_params[-1]/1e6, cls_ops[-1]/1e8)
 
     # import numpy as np
     # def params_count(model):

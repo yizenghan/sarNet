@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -81,10 +81,10 @@ class BasicBlock(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
         if not do_patch:
-            self.conv1 = conv3x3(inplanes, planes, stride)
+            self.conv1 = conv3x3(inplanes, planes, stride=stride)
             self.bn1 = norm_layer(planes)
             self.relu = nn.ReLU(inplace=True)
-            self.conv2 = conv3x3(planes, planes)
+            self.conv2 = conv3x3(planes, planes,stride=1)
             self.bn2 = norm_layer(planes)
             self.flops_per_pixel_1 = inplanes * planes * 9
             self.flops_per_pixel_2 = planes * planes * 9
@@ -185,7 +185,7 @@ class BasicBlock(nn.Module):
 
             out = self.conv2(out)
             out = self.bn2(out)
-            flops += self.flops_per_pixel_1 * out.shape[2] * out.shape[3]
+            flops += self.flops_per_pixel_2 * out.shape[2] * out.shape[3]
 
             if self.downsample is not None:
                 c_in = x.shape[1]
@@ -217,7 +217,7 @@ class BasicBlock(nn.Module):
             b,c,h,w = x.shape
             mask, _flops = self.mask_gen.forward_calc_flops(x, temperature=temperature)
             ratio = mask.sum() / mask.numel()
-            # ratio = 0.3
+            ratio = 1
             flops += _flops
             g = mask.shape[1]
             m_h = mask.shape[2]
@@ -244,16 +244,16 @@ class BasicBlock(nn.Module):
 
             _,_,h,w = x_refine.shape
             x_base = F.interpolate(x_base, size = (h,w))
-            out = x_refine + x_base
+            x_refine = x_refine + x_base
             
             if self.downsample is not None:
                 c_in = x.shape[1]
                 residual = self.downsample(x)
                 flops += c_in * residual.shape[1] *residual.shape[2] *residual.shape[3]  
 
-            out += residual
-            out = self.relu(out)
-            return out, mask, flops
+            x_refine += residual
+            x_refine = self.relu(x_refine)
+            return x_refine, mask, flops
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -496,21 +496,21 @@ class Bottleneck(nn.Module):
             x_base = self.conv1_base(x_base)
             x_base = self.bn1_base(x_base)
             x_base = self.relu(x_base)
-            flops += self.flops_per_pixel_base1 * x_base.shape[2] * x_base.shape[3]
+            # flops += self.flops_per_pixel_base1 * x_base.shape[2] * x_base.shape[3]
 
             x_base = self.conv2_base(x_base)
             x_base = self.bn2_base(x_base)
             x_base = self.relu(x_base)
-            flops += self.flops_per_pixel_base2 * x_base.shape[2] * x_base.shape[3]
+            # flops += self.flops_per_pixel_base2 * x_base.shape[2] * x_base.shape[3]
 
             x_base = self.conv3_base(x_base)
             x_base = self.bn3_base(x_base)
-            flops += self.flops_per_pixel_base3 * x_base.shape[2] * x_base.shape[3]
+            # flops += self.flops_per_pixel_base3 * x_base.shape[2] * x_base.shape[3]
             b,c,h,w = x.shape
             mask, _flops = self.mask_gen.forward_calc_flops(x, temperature=temperature)
             ratio = mask.sum() / mask.numel()
-            # ratio = 0.3
-            flops += _flops
+            ratio = 1
+            # flops += _flops
 
             g = mask.shape[1]
             m_h = mask.shape[2]
@@ -546,7 +546,10 @@ class Bottleneck(nn.Module):
             out = x_refine + x_base
             
             if self.downsample is not None:
+                c_in = x.shape[1]
                 residual = self.downsample(x)
+                _, c_out, h, w = residual.shape
+                flops += c_in * c_out * h * w
 
             out += residual
             out = self.relu(out)
@@ -562,7 +565,7 @@ class sarResNet(nn.Module):
                                bias=False)
         self.bn1 = nn.BatchNorm2d(num_channels[0])
         self.relu = nn.ReLU(inplace=True)
-
+        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.b_conv0 = nn.Conv2d(num_channels[0], num_channels[0], kernel_size=3, stride=2, padding=1, bias=False)
         self.bn_b0 = nn.BatchNorm2d(num_channels[0])
 
@@ -610,17 +613,23 @@ class sarResNet(nn.Module):
         # Zero-initialize the last BN in each block.
         # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
         for k, m in self.named_modules():
-            if isinstance(m, nn.BatchNorm2d) and '3' in k:
+            if isinstance(m, nn.BatchNorm2d) and 'bn3' in k:
                 nn.init.constant_(m.weight, 0)
 
     def _make_layer(self, block, inplanes, planes, blocks, stride=1, 
                     mask_size=7, alpha=2, base_scale=2, do_patch=True):
         downsample = []
-        if stride != 1:
-            downsample.append(nn.AvgPool2d(3, stride=2, padding=1))
-        if inplanes != planes:
-            downsample.append(nn.Conv2d(inplanes, planes, kernel_size=1, stride=1, bias=False))
-            downsample.append(nn.BatchNorm2d(planes))
+        # if stride != 1:
+        #     downsample.append(nn.AvgPool2d(3, stride=2, padding=1))
+        # if inplanes != planes:
+        #     downsample.append(nn.Conv2d(inplanes, planes, kernel_size=1, stride=1, bias=False))
+        #     downsample.append(nn.BatchNorm2d(planes))
+        if stride != 1 or inplanes != planes:
+            downsample = nn.Sequential(
+                conv1x1(inplanes, planes, stride),
+                nn.BatchNorm2d(planes),
+            )
+
         downsample = None if downsample == [] else nn.Sequential(*downsample)
 
         layers = []
@@ -688,6 +697,9 @@ class sarResNet(nn.Module):
         flops += c_in * x.shape[1] * x.shape[2] * x.shape[3] * self.conv1.weight.shape[2]*self.conv1.weight.shape[3]
         x = self.bn1(x)
         x = self.relu(x)
+
+        # x = self.maxpool(x)
+        # flops += x.shape[1] * x.shape[2] * x.shape[3] * 9
 
         c_in = x.shape[1]
         bx = self.b_conv0(x)
@@ -830,7 +842,7 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    sar_res = sar_resnet_freFuse(depth=50, patch_groups=4, width=1, alpha=4, base_scale=2)
+    sar_res = sar_resnet_freFuse(depth=50, patch_groups=1, width=1, alpha=1, base_scale=2)
     # with torch.no_grad():
         
     # print(sar_res)

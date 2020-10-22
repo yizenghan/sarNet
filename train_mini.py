@@ -35,10 +35,11 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
+from miniImageNet import miniImageNet
 
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
-parser.add_argument('--data_url', type=str, metavar='DIR', default='/home/data/ImageNet/',
+parser.add_argument('--data_url', type=str, metavar='DIR', default='/data/',
                     help='path to dataset')
 parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/test/',
                     help='path to save result and checkpoint (default: results/savedir)')
@@ -358,28 +359,38 @@ def main_worker(gpu, ngpus_per_node, args):
     print('Train data augmentaion:', get_transform(args, is_train_set=True))
     print('Valid data augmentaion:', get_transform(args, is_train_set=False))
 
-    traindir = args.data_url + 'train/'
-    valdir = args.data_url + 'val/'
+    # traindir = args.data_url + 'train/'
+    # valdir = args.data_url + 'val/'
 
-    train_dataset = datasets.ImageFolder(
-        traindir,
-        get_transform(args, is_train_set=True))
-
+    
+    train_dataset = miniImageNet(root=args.data_url, split='train')
+    val_dataset = miniImageNet(root=args.data_url, split='val')
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     else:
         train_sampler = None
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+                                        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+    val_loader = torch.utils.data.DataLoader(val_dataset,
+                                               batch_size=args.batch_size * torch.cuda.device_count(),
+                                               shuffle=False, num_workers=args.workers, pin_memory=True)
 
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+    # train_dataset = datasets.ImageFolder(
+    #     traindir,
+    #     get_transform(args, is_train_set=True))
 
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(
-            valdir,
-            get_transform(args, is_train_set=False)),
-        batch_size=args.batch_size * torch.cuda.device_count(), shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+    
+
+    # train_loader = torch.utils.data.DataLoader(
+    #     train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+    #     num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+
+    # val_loader = torch.utils.data.DataLoader(
+    #     datasets.ImageFolder(
+    #         valdir,
+    #         get_transform(args, is_train_set=False)),
+    #     batch_size=args.batch_size * torch.cuda.device_count(), shuffle=False,
+    #     num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
         # target_rate = args.target_rate
@@ -468,7 +479,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
     train_progress = ProgressMeter(
         train_batches_num,
-        [batch_time, data_time, losses, top1, top5],
+        [batch_time, data_time,act_rates, losses, losses_cls, losses_act, top1, top5],
         prefix="Epoch: [{}/{}]".format(epoch, args.epochs))
 
     model.train()
@@ -490,10 +501,10 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         adjust_gs_temperature(epoch, i, train_batches_num, args)
         if args.mixup > 0.0:
             input, target_a, target_b, lam = mixup_data(input, target, args.mixup)
-            output = model(input)
+            output, _masks = model(input, temperature=args.temp, inference=False)
             loss_cls = mixup_criterion(criterion, output, target_a, target_b, lam)
         else:
-            output = model(input)
+            output, _masks = model(input, temperature=args.temp, inference=False)
             loss_cls = criterion(output, target)
 
         ### Measure accuracy and record loss
@@ -506,32 +517,31 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
         
 
-        # act_rate = 0.0
-        # loss_act_rate = 0.0
-        # # print(len(_masks))
-        # # assert(0==1)
-        # for act in _masks:
-        #     act_rate += torch.mean(act)
-        #     loss_act_rate += torch.pow(target_rate-torch.mean(act), 2)
-        # act_rate = torch.mean(act_rate/len(_masks))
-        # loss_act_rate = args.lambda_act * torch.mean(loss_act_rate/len(_masks))
-        loss = loss_cls
-        # if args.dynamic_rate:
-        #     loss = loss_cls + loss_act_rate
-        # else:
-        #     loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
+        act_rate = 0.0
+        loss_act_rate = 0.0
+        # print(len(_masks))
+        # assert(0==1)
+        for act in _masks:
+            act_rate += torch.mean(act)
+            loss_act_rate += torch.pow(target_rate-torch.mean(act), 2)
+        act_rate = torch.mean(act_rate/len(_masks))
+        loss_act_rate = args.lambda_act * torch.mean(loss_act_rate/len(_masks))
+        if args.dynamic_rate:
+            loss = loss_cls + loss_act_rate
+        else:
+            loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
         
         if math.isnan(loss.item()):
             optimizer.zero_grad()
             continue
-        # elif math.isnan(loss_act_rate.item()):
-        #     optimizer.zero_grad()
-        #     if args.use_amp:
-        #         with amp.scale_loss(loss_cls, optimizer) as scaled_loss:
-        #             scaled_loss.backward()
-        #     else:
-        #         loss_cls.backward()
-        #     continue 
+        elif math.isnan(loss_act_rate.item()):
+            optimizer.zero_grad()
+            if args.use_amp:
+                with amp.scale_loss(loss_cls, optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss_cls.backward()
+            continue 
         # dist.all_reduce(acc1)
         # acc1 /= args.world_size
         # dist.all_reduce(acc5)
@@ -544,9 +554,9 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         # loss_act_rate /= args.world_size
         # dist.all_reduce(act_rate)
         # act_rate /= args.world_size
-        # act_rates.update(act_rate.item(), input.size(0))
-        # losses_act.update(loss_act_rate.item(),input.size(0))
-        # losses_cls.update(loss_cls.item(), input.size(0))
+        act_rates.update(act_rate.item(), input.size(0))
+        losses_act.update(loss_act_rate.item(),input.size(0))
+        losses_cls.update(loss_cls.item(), input.size(0))
         losses.update(loss.item(), input.size(0))
         top1.update(acc1.item(), input.size(0))
         top5.update(acc5.item(), input.size(0))
@@ -650,7 +660,7 @@ def validate(val_loader, model, criterion, args, target_rate):
     top5 = AverageMeter('Acc@5', ':6.2f')
     progress = ProgressMeter(
         len(val_loader),
-        [batch_time,losses, top1, top5],
+        [batch_time, act_rates,losses, losses_cls, losses_act, top1, top5],
         prefix='Test: ')
 
     model.eval()
@@ -664,17 +674,17 @@ def validate(val_loader, model, criterion, args, target_rate):
 
             ### Compute output single crop
             # output = model(input)
-            output = model(input)
+            output, _masks = model(input, temperature=args.temp, inference=False)
             loss_cls= criterion(output, target)
-            # act_rate = 0.0
-            # loss_act_rate = 0.0
-            # for act in _masks:
-            #     act_rate += torch.mean(act)
-            #     loss_act_rate += torch.pow(target_rate-torch.mean(act), 2)
-            # act_rate = torch.mean(act_rate/len(_masks))
-            # loss_act_rate = torch.mean(loss_act_rate/len(_masks))
-            # loss_act_rate = args.lambda_act * loss_act_rate
-            loss = loss_cls
+            act_rate = 0.0
+            loss_act_rate = 0.0
+            for act in _masks:
+                act_rate += torch.mean(act)
+                loss_act_rate += torch.pow(target_rate-torch.mean(act), 2)
+            act_rate = torch.mean(act_rate/len(_masks))
+            loss_act_rate = torch.mean(loss_act_rate/len(_masks))
+            loss_act_rate = args.lambda_act * loss_act_rate
+            loss = loss_cls + loss_act_rate
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
             dist.all_reduce(acc1)
             acc1 /= args.world_size
@@ -682,16 +692,16 @@ def validate(val_loader, model, criterion, args, target_rate):
             acc5 /= args.world_size
             dist.all_reduce(loss)
             loss /= args.world_size
-            # dist.all_reduce(loss_cls)
-            # loss_cls /= args.world_size
-            # dist.all_reduce(loss_act_rate)
-            # loss_act_rate /= args.world_size
-            # dist.all_reduce(act_rate)
-            # act_rate /= args.world_size
+            dist.all_reduce(loss_cls)
+            loss_cls /= args.world_size
+            dist.all_reduce(loss_act_rate)
+            loss_act_rate /= args.world_size
+            dist.all_reduce(act_rate)
+            act_rate /= args.world_size
             
-            # act_rates.update(act_rate.item(), input.size(0))
-            # losses_act.update(loss_act_rate.item(),input.size(0))
-            # losses_cls.update(loss_cls.item(), input.size(0))
+            act_rates.update(act_rate.item(), input.size(0))
+            losses_act.update(loss_act_rate.item(),input.size(0))
+            losses_cls.update(loss_cls.item(), input.size(0))
 
             # Compute output ten crop
             # bs, ncrops, c, h, w = input.size()
