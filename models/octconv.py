@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import math
 
-
 class OctaveConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, alpha_in=0.5, alpha_out=0.5, stride=1, padding=0, dilation=1,
                  groups=1, bias=False):
