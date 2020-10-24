@@ -1,8 +1,9 @@
 CUDA_VISIBLE_DEVICES=4,5,6,7 \
-python main_sar_local2.py \
+python main_sar_local.py \
 --test_code 0 \
---config configs/__r34_ls_warmup.py \
---train_url ./log/__r34_baseline/ \
+--config configs/__freFuse34_g2a2s2m71_ls_warmup_local.py \
+--train_url ./log/__freFuse34_g2a2s2m71_ls_warmup_resume/ \
+--resume log/__freFuse34_g2a2s2m71_ls_warmup/checkpoint.pth.tar \
 --no_train_on_cloud \
 --workers 128 \
 --use_amp 0 \

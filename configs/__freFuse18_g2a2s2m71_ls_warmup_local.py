@@ -1,7 +1,7 @@
 model = dict(
     type='models.sar_resnet_freFuse',
     num_classes=1000,
-    depth=34,
+    depth=18,
     patch_groups=2,
     alpha=2,
     base_scale=2,
