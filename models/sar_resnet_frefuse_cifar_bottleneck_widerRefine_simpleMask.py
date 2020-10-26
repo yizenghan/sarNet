@@ -12,20 +12,20 @@ class maskGen(nn.Module):
         super(maskGen,self).__init__()
         self.groups = groups
         self.mask_size = mask_size
-        # self.conv3x3_gs = nn.Sequential(
-        #     nn.Conv2d(inplanes, groups*4,kernel_size=3, padding=1, stride=1, bias=False, groups = groups),
-        #     nn.BatchNorm2d(groups*4),
-        #     nn.ReLU(inplace=True)
-        # )
+        self.conv3x3_gs = nn.Sequential(
+            nn.Conv2d(inplanes, groups*4,kernel_size=3, padding=1, stride=1, bias=False, groups = groups),
+            nn.BatchNorm2d(groups*4),
+            nn.ReLU(inplace=True)
+        )
         self.pool = nn.AdaptiveAvgPool2d((mask_size,mask_size))
-        self.fc_gs = nn.Conv2d(inplanes,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = 1)
+        self.fc_gs = nn.Conv2d(groups*4,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = 1)
         self.fc_gs.bias.data[:2*groups:2] = 0.1
         self.fc_gs.bias.data[1:2*groups+1:2] = 5.0      
         self.gs = GumbleSoftmax()
 
     def forward(self, x, temperature=1.0):
-        # gates = self.conv3x3_gs(x)
-        gates = self.pool(x)
+        gates = self.conv3x3_gs(x)
+        gates = self.pool(gates)
         gates = self.fc_gs(gates)
         gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
         gates = self.gs(gates, temp=temperature, force_hard=True)
@@ -34,12 +34,12 @@ class maskGen(nn.Module):
 
     def forward_calc_flops(self, x, temperature=1.0):
         flops = 0
-        # c_in = x.shape[1]
-        # gates = self.conv3x3_gs(x)
-        # flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] * 9 / self.groups
+        c_in = x.shape[1]
+        gates = self.conv3x3_gs(x)
+        flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] * 9 / self.groups
 
-        flops += x.shape[1] * x.shape[2] * x.shape[3]
-        gates = self.pool(x)
+        flops += gates.shape[1] * gates.shape[2] * gates.shape[3]
+        gates = self.pool(gates)
 
         c_in = gates.shape[1]
         gates = self.fc_gs(gates)
