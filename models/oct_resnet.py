@@ -2,8 +2,6 @@ import torch.nn as nn
 from octconv import *
 
 
-__all__ = ['OctResNet', 'oct_resnet26', 'oct_resnet50', 'oct_resnet101', 'oct_resnet152', 'oct_resnet200']
-
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -242,7 +240,7 @@ def oct_resnet200(pretrained=False, **kwargs):
 
 class OctResNet_cifar(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
+    def __init__(self, block, layers, num_classes=100, zero_init_residual=False,
                  groups=1, width_per_group=64, norm_layer=None):
         super(OctResNet_cifar, self).__init__()
         if norm_layer is None:
