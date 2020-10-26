@@ -12,20 +12,20 @@ class maskGen(nn.Module):
         super(maskGen,self).__init__()
         self.groups = groups
         self.mask_size = mask_size
-        self.conv3x3_gs = nn.Sequential(
-            nn.Conv2d(inplanes, groups*4,kernel_size=3, padding=1, stride=1, bias=False, groups = groups),
-            nn.BatchNorm2d(groups*4),
-            nn.ReLU(inplace=True)
-        )
+        # self.conv3x3_gs = nn.Sequential(
+        #     nn.Conv2d(inplanes, groups*4,kernel_size=3, padding=1, stride=1, bias=False, groups = groups),
+        #     nn.BatchNorm2d(groups*4),
+        #     nn.ReLU(inplace=True)
+        # )
         self.pool = nn.AdaptiveAvgPool2d((mask_size,mask_size))
-        self.fc_gs = nn.Conv2d(groups*4,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = groups)
+        self.fc_gs = nn.Conv2d(inplanes,groups*2,kernel_size=1,stride=1,padding=0,bias=True, groups = 1)
         self.fc_gs.bias.data[:2*groups:2] = 0.1
         self.fc_gs.bias.data[1:2*groups+1:2] = 5.0      
         self.gs = GumbleSoftmax()
 
     def forward(self, x, temperature=1.0):
-        gates = self.conv3x3_gs(x)
-        gates = self.pool(gates)
+        # gates = self.conv3x3_gs(x)
+        gates = self.pool(x)
         gates = self.fc_gs(gates)
         gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
         gates = self.gs(gates, temp=temperature, force_hard=True)
@@ -34,16 +34,16 @@ class maskGen(nn.Module):
 
     def forward_calc_flops(self, x, temperature=1.0):
         flops = 0
-        c_in = x.shape[1]
-        gates = self.conv3x3_gs(x)
-        flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] * 9 / self.groups
+        # c_in = x.shape[1]
+        # gates = self.conv3x3_gs(x)
+        # flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] * 9 / self.groups
 
-        flops += gates.shape[1] * gates.shape[2] * gates.shape[3]
-        gates = self.pool(gates)
+        flops += x.shape[1] * x.shape[2] * x.shape[3]
+        gates = self.pool(x)
 
         c_in = gates.shape[1]
         gates = self.fc_gs(gates)
-        flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] / self.groups
+        flops += c_in * gates.shape[1] * gates.shape[2] * gates.shape[3] 
         gates = gates.view(x.shape[0],self.groups,2,self.mask_size,self.mask_size)
         # print(temperature)
         gates = self.gs(gates, temp=temperature, force_hard=True)
@@ -435,7 +435,7 @@ class Bottleneck(nn.Module):
             mask, _flops = self.mask_gen.forward_calc_flops(x, temperature=temperature)
             ratio = mask.sum() / mask.numel()
             # ratio = 0.35
-            flops += _flops
+            # flops += _flops
 
             g = mask.shape[1]
             m_h = mask.shape[2]
@@ -648,16 +648,16 @@ def sar_resnetCifar_freFuse(depth, num_classes=100, patch_groups=1, mask_size1=7
                       width=width, alpha1=alpha1,alpha2=alpha2, base_scale=base_scale)
     return model
 
-def sar_resnet50Cifar100_freFuseWideRefine_g4a22s2():
+def sar_resnet50Cifar100_freFuseWideRefine_simpleM_g4a22s2():
     return sar_resnetCifar_freFuse(depth=50, num_classes=100, patch_groups=4, 
                 mask_size1=4, mask_size2=2, width=1.0, alpha1=2, alpha2=2, base_scale=2)
-def sar_resnet50Cifar100_freFuseWideRefine_g4a22s4():
+def sar_resnet50Cifar100_freFuseWideRefine_simpleM_g4a22s4():
     return sar_resnetCifar_freFuse(depth=50, num_classes=100, patch_groups=4, 
                 mask_size1=4, mask_size2=2, width=1.0, alpha1=2, alpha2=2, base_scale=4)
-def sar_resnet50Cifar100_freFuseWideRefine_g8a22s2():
+def sar_resnet50Cifar100_freFuseWideRefine_simpleM_g8a22s2():
     return sar_resnetCifar_freFuse(depth=50, num_classes=100, patch_groups=8, 
                 mask_size1=4, mask_size2=2, width=1.0, alpha1=2, alpha2=2, base_scale=2)
-def sar_resnet50Cifar100_freFuseWideRefine_g8a22s4():
+def sar_resnet50Cifar100_freFuseWideRefine_simpleM_g8a22s4():
     return sar_resnetCifar_freFuse(depth=50, num_classes=100, patch_groups=8, 
                 mask_size1=4, mask_size2=2, width=1.0, alpha1=2, alpha2=2, base_scale=4)
 
