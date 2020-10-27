@@ -267,12 +267,11 @@ class Bottleneck_refine(nn.Module):
         b,c,h,w = x.shape
         g = mask.shape[1]
         m_h = mask.shape[2]
+        ratio = mask.sum() / mask.numel()
+        mask1 = mask.clone()
         if g > 1:
-            mask1 = mask.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
-        else:
-            mask1 = mask.clone()
+            mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
         
-        ratio = mask1.sum() / mask1.numel()
         # ratio = 0.923
         # print(ratio)
         mask1 = F.interpolate(mask1, size = (h,w))
@@ -286,14 +285,11 @@ class Bottleneck_refine(nn.Module):
 
         c_out = out.shape[1]
         # print(mask1.shape, mask.shape)
+        mask2 = mask
         if g > 1:
-            mask2 = mask.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
-        else:
-            mask2 = mask.clone()
+            mask2 = mask2.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
+            
         mask2 = F.interpolate(mask2, size = (h,w))
-
-        ratio = mask2.sum() / mask2.numel()
-        # ratio = 0.923
         # print(ratio)
         out = out * mask2
         c_in = out.shape[1]
@@ -493,7 +489,7 @@ class sarResNet(nn.Module):
                                num_channels[1]*block_base.expansion, layers[1], stride=2, groups=patch_groups,mask_size=mask_size, alpha=alpha, base_scale=base_scale)
         
         self.layer3 = sarModule(block_base, block_refine, num_channels[1]*block_base.expansion,
-                               num_channels[2]*block_base.expansion, layers[2], stride=1, groups=patch_groups,mask_size=1, alpha=alpha, base_scale=2)
+                               num_channels[2]*block_base.expansion, layers[2], stride=1, groups=patch_groups,mask_size=2, alpha=alpha, base_scale=2)
         self.layer4 = self._make_layer(
             block_base, num_channels[2]*block_base.expansion, num_channels[3]*block_base.expansion, layers[3], stride=2)
         self.gappool = nn.AdaptiveAvgPool2d(1)

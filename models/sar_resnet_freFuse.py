@@ -217,7 +217,7 @@ class BasicBlock(nn.Module):
             b,c,h,w = x.shape
             mask, _flops = self.mask_gen.forward_calc_flops(x, temperature=temperature)
             ratio = mask.sum() / mask.numel()
-            # ratio = 1
+            # ratio = 0.685
             flops += _flops
             g = mask.shape[1]
             m_h = mask.shape[2]
@@ -509,8 +509,8 @@ class Bottleneck(nn.Module):
             b,c,h,w = x.shape
             mask, _flops = self.mask_gen.forward_calc_flops(x, temperature=temperature)
             ratio = mask.sum() / mask.numel()
-            # ratio = 1
-            # flops += _flops
+            # ratio = 0.685
+            flops += _flops
 
             g = mask.shape[1]
             m_h = mask.shape[2]
@@ -843,7 +843,7 @@ if __name__ == "__main__":
     from op_counter import measure_model
     
     # print(sar_res)
-    sar_res = sar_resnet_freFuse(depth=50, patch_groups=1, width=1, alpha=1, base_scale=2)
+    sar_res = sar_resnet_freFuse(depth=34, patch_groups=2, width=1, alpha=2, base_scale=2)
     # with torch.no_grad():
         
     # print(sar_res)

@@ -217,11 +217,12 @@ def main_worker(args):
     optimizer = get_optimizer(args, model)
     scheduler = get_scheduler(args)
 
+    model.eval()
     rand_inp = torch.rand(1, 3, 32, 32)
     _, _, args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
     args.full_flops /= 1e9
     model = torch.nn.DataParallel(model, device_ids=[0]).cuda()
-    model.eval()
+    
     # rand_inp = torch.rand(1,3,32,32)
     # _,_,args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
 
@@ -307,7 +308,7 @@ def main_worker(args):
     for epoch in range(args.start_epoch, args.epochs):
         ### Train for one epoch
         target_flops = adjust_target_flops(epoch, args)
-        print(f'Target rate: {target_flops}')
+        print(f'Target flops: {target_flops}')
         tr_acc1, tr_acc5, tr_loss, lr = \
             train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_flops)
 
@@ -493,9 +494,9 @@ def validate(val_loader, model, criterion, args, target_flops):
             ### Compute output single crop
             # output = model(input)
             output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.temp, inference=False)
+            flops /= 1e9
             loss_cls = criterion(output, target)
             act_rate = 0.0
-            loss_flops = 0.0
             for act in _masks:
                 act_rate += torch.mean(act)
             loss_flops = args.lambda_act * torch.pow(target_flops - flops, 2)

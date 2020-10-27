@@ -180,14 +180,11 @@ class Bottleneck_refine(nn.Module):
         b,c,h,w = x.shape
         g = mask.shape[1]
         m_h = mask.shape[2]
+        ratio = mask.sum() / mask.numel()
+        mask1 = mask.clone()
         if g > 1:
-            mask1 = mask.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
-        else:
-            mask1 = mask.clone()
-        
-        ratio = mask1.sum() / mask1.numel()
-        # ratio = 0.5
-        # print(ratio)
+            mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
+
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
         out = x * mask1
@@ -199,13 +196,11 @@ class Bottleneck_refine(nn.Module):
 
         c_out = out.shape[1]
         # print(mask1.shape, mask.shape)
+        mask2 = mask
         if g > 1:
-            mask2 = mask.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
-        else:
-            mask2 = mask.clone()
+            mask2 = mask2.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
+            
         mask2 = F.interpolate(mask2, size = (h,w))
-
-        ratio = mask2.sum() / mask2.numel()
         # ratio = 0.5
         out = out * mask2
         c_in = out.shape[1]
@@ -299,7 +294,7 @@ class sarModule(nn.Module):
         self.refine_module = self._make_layer(block_refine, in_channels, out_channels, blocks - 1, 1, last_relu=False, base_scale=base_scale)
         self.alpha = alpha
         if alpha > 1:
-            self.refine_transform = nn.Sequential(
+            self.base_transform = nn.Sequential(
                 nn.Conv2d(out_channels // alpha, out_channels, kernel_size=1, bias=False),
                 nn.BatchNorm2d(out_channels)
             )
@@ -335,13 +330,14 @@ class sarModule(nn.Module):
 
     def forward(self, x, temperature=1e-8, inference=False):
         _masks = []
+        x_refine = x
         for i in range(len(self.base_module)):
             x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
-            x_refine = self.refine_module[i](x_refine, mask, inference=False) if i!=0 else self.refine_module[i](x, mask, inference=False)
+            x_refine = self.refine_module[i](x_refine, mask, inference=False) 
         if self.alpha > 1:
-            x_base = self.refine_transform(x_base)
+            x_base = self.base_transform(x_base)
         _,_,h,w = x_refine.shape
         x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear', align_corners=False)
         out = self.relu(x_base + x_refine)
@@ -352,18 +348,19 @@ class sarModule(nn.Module):
         b,c,h,w = x.size()
         flops = 0
         _masks = []
+        x_refine = x
         for i in range(len(self.base_module)):
             x_base, _flops = self.base_module[i].forward_calc_flops(x_base) if i!=0 else self.base_module[i].forward_calc_flops(x)
             flops += _flops
             mask, _flops = self.mask_gen[i].forward_calc_flops(x_base, temperature=temperature)
             _masks.append(mask)
             flops += _flops
-            x_refine, _flops = self.refine_module[i].forward_calc_flops(x_refine, mask, inference=False) if i!=0 else self.refine_module[i].forward_calc_flops(x, mask, inference=False)
+            x_refine, _flops = self.refine_module[i].forward_calc_flops(x_refine, mask, inference=False) 
             flops += _flops
 
         _,c,h,w = x_refine.shape
         if self.alpha > 1:
-            x_base = self.refine_transform(x_base)
+            x_base = self.base_transform(x_base)
             flops += c // self.alpha * x_base.shape[1] * x_base.shape[2] * x_base.shape[3]
         x_base = F.interpolate(x_base, size = (h,w), mode = 'bilinear', align_corners=False)
         out = self.relu(x_base + x_refine)

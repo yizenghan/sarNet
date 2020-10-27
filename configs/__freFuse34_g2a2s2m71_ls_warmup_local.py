@@ -6,7 +6,7 @@ model = dict(
     alpha=2,
     base_scale=2,
     mask_size1=7,
-    mask_size2=1    
+    mask_size2=1
 )
 train_cfg = dict(
     hyperparams_set_index=2333,

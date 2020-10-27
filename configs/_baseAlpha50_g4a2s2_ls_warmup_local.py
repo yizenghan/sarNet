@@ -3,7 +3,7 @@ model = dict(
     num_classes=1000,
     depth=50,
     mask_size=7,
-    patch_groups=2,
+    patch_groups=4,
     alpha=2,
     base_scale=2
 )
