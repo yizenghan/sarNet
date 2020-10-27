@@ -428,7 +428,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     with open(log_file, "w") as f:
                         df.to_csv(f)
                 save_checkpoint({
-                    'epoch': epoch,
+                    'epoch': epoch + 1,
                     'model': model_type,
                     'hyper_set': str(args),
                     'state_dict': model.state_dict(),

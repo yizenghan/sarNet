@@ -3,6 +3,7 @@ import argparse
 import time
 import random
 import warnings
+
 warnings.filterwarnings("ignore")
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 import pandas as pd
@@ -30,7 +31,6 @@ import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 import torchvision.transforms as transforms
 
-
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
 parser.add_argument('--data_url', type=str, metavar='DIR', default='/home/hanyz/data/',
@@ -50,7 +50,7 @@ parser.add_argument('--lr', '--learning_rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate (default: 0.1)')
 parser.add_argument('--scheduler', default='cosine', type=str, metavar='T',
                     help='learning rate strategy (default: multistep)',
-                    choices=['cosine', 'multistep', 'linear'])                    
+                    choices=['cosine', 'multistep', 'linear'])
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum (default: 0.9)')
 parser.add_argument('--weight_decay', '--wd', default=1e-4, type=float,
@@ -58,7 +58,7 @@ parser.add_argument('--weight_decay', '--wd', default=1e-4, type=float,
 parser.add_argument('--optimizer', default='SGD', type=str)
 # structure
 parser.add_argument('--type', default='bottleneck', type=str,
-                    choices=['bottleneck', 'alphaBase', 'alphaRefine', 'oct', 'widerRefine'])
+                    choices=['bottleneck', 'alphaBase', 'alphaRefine', 'oct', 'widerRefine', 'widerRefine_sm'])
 parser.add_argument('--arch', default='sar_resnet_fre_fuse_cifar', type=str)
 parser.add_argument('--patch_groups', default=1, type=int)
 parser.add_argument('--alpha', default=1, type=int)
@@ -67,7 +67,7 @@ parser.add_argument('--base_scale', default=2, type=int)
 # mask control
 parser.add_argument('--t0', default=5.0, type=float, metavar='M', help='momentum')
 parser.add_argument('--t_last', default=0.01, type=float, metavar='M', help='momentum')
-parser.add_argument('--target_flops', default=0, type=float, metavar='M', help='momentum')
+parser.add_argument('--target_flops', default=0.7, type=float, metavar='M', help='momentum')
 parser.add_argument('--lambda_act', default=0.1, type=float, metavar='M', help='momentum')
 parser.add_argument('--temp', default=0.1, type=float, metavar='M', help='momentum')
 parser.add_argument('--lrfact', default=1, type=float, help='learning rate factor')
@@ -84,7 +84,7 @@ parser.add_argument('--warmup_epoch', default=None, type=int, metavar='N',
 parser.add_argument('--warmup_lr', default=0.1, type=float,
                     metavar='LR', help='initial warm up learning rate (default: 0.1)')
 parser.add_argument('--weigh_decay_apply_on_all', default=True, type=str)
-parser.add_argument('--nesterov', default=True, type=str)                    
+parser.add_argument('--nesterov', default=True, type=str)
 parser.add_argument('--print_freq', '-p', default=50, type=int,
                     metavar='N', help='print frequency (default: 10)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
@@ -107,6 +107,7 @@ args = parser.parse_args()
 
 if args.train_on_cloud:
     import moxing as mox
+
     mox.file.shift('os', 'mox')
 
 best_acc1 = 0
@@ -122,9 +123,7 @@ lr_log = []
 epoch_log = []
 
 
-
 def main():
-
     if not args.train_on_cloud:
         if not os.path.exists(args.train_url):
             os.makedirs(args.train_url)
@@ -136,7 +135,7 @@ def main():
             str_lambda = str(args.lambda_act).replace('.', '_')
             str_ta = str(args.target_flops).replace('.', '_')
             # save_path = f'{args.train_url}mask2_freFuse16x{args.width}_g{args.patch_groups}_a{args.alpha}_s{args.base_scale}_t0_{str_t0}_target{str_ta}_optimizeFromEpoch{args.optimize_rate_begin_epoch}_lambda_{str_lambda}_dynamicRate{args.dynamic_rate}/'
-            save_path = f'{args.train_url}_{args.type}_cifar16x{args.width}_g{args.patch_groups}_a{args.alpha}_s{args.base_scale}_t0_{str_t0}_target{str_ta}_optimizeFromEpoch{args.optimize_rate_begin_epoch}_lambda_{str_lambda}_dynamicRate{args.dynamic_rate}/'
+            save_path = f'{args.train_url}_flops_{args.type}_cifar16x{args.width}_g{args.patch_groups}_a{args.alpha}_s{args.base_scale}_t0_{str_t0}_target{str_ta}_optimizeFromEpoch{args.optimize_rate_begin_epoch}_lambda_{str_lambda}_dynamicRate{args.dynamic_rate}/'
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
             args.train_url = save_path
@@ -167,12 +166,11 @@ def main_worker(args):
     print(args)
 
     if args.train_on_cloud:
-        with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
+        with mox.file.File(args.train_url + 'train_configs.txt', "w") as f:
             f.write(str(args))
     else:
-        with open(args.train_url+'train_configs.txt', "w") as f:
+        with open(args.train_url + 'train_configs.txt', "w") as f:
             f.write(str(args))
-
 
     ### Create model
     # model = pytorchmodels.resnet50(pretrained=False)
@@ -192,6 +190,9 @@ def main_worker(args):
     elif args.type == 'widerRefine':
         arch_config = f'sar_resnet50Cifar100_freFuseWideRefine_g{args.patch_groups}a22s{args.base_scale}'
         args.arch = 'sar_resnet_frefuse_cifar_bottleneck_widerRefine'
+    elif args.type == 'widerRefine_sm':
+        arch_config = f'sar_resnet50Cifar100_freFuseWideRefine_simpleM_g{args.patch_groups}a22s{args.base_scale}'
+        args.arch = 'sar_resnet_frefuse_cifar_bottleneck_widerRefine_simplemask'
     # args.arch='sar_resnet2_fre_fuse_cifar'
     model = eval(f'models.{args.arch}.{arch_config}')()
     # model = eval(model_type)(**args.cfg['model'])
@@ -216,11 +217,14 @@ def main_worker(args):
     optimizer = get_optimizer(args, model)
     scheduler = get_scheduler(args)
 
+    rand_inp = torch.rand(1, 3, 32, 32)
+    _, _, args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
+    args.full_flops /= 1e9
     model = torch.nn.DataParallel(model, device_ids=[0]).cuda()
     model.eval()
-    rand_inp = torch.rand(1,3,32,32)
-    _,_,args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
-    
+    # rand_inp = torch.rand(1,3,32,32)
+    # _,_,args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
+
     # optionally resume from a checkpoint
     # args.gpu = None
     if args.resume:
@@ -255,32 +259,32 @@ def main_worker(args):
         normalize = transforms.Normalize(mean=[0.4914, 0.4824, 0.4467],
                                          std=[0.2471, 0.2435, 0.2616])
         trainset = datasets.CIFAR10(args.data_url, train=True, download=True,
+                                    transform=transforms.Compose([
+                                        transforms.RandomCrop(32, padding=4),
+                                        transforms.RandomHorizontalFlip(),
+                                        transforms.ToTensor(),
+                                        normalize
+                                    ]))
+        valset = datasets.CIFAR10(args.data_url, train=False, download=True,
+                                  transform=transforms.Compose([
+                                      transforms.ToTensor(),
+                                      normalize
+                                  ]))
+    elif args.dataset == 'cifar100':
+        normalize = transforms.Normalize(mean=[0.5071, 0.4867, 0.4408],
+                                         std=[0.2675, 0.2565, 0.2761])
+        trainset = datasets.CIFAR100(args.data_url, train=True, download=True,
                                      transform=transforms.Compose([
                                          transforms.RandomCrop(32, padding=4),
                                          transforms.RandomHorizontalFlip(),
                                          transforms.ToTensor(),
                                          normalize
                                      ]))
-        valset = datasets.CIFAR10(args.data_url, train=False, download=True,
+        valset = datasets.CIFAR100(args.data_url, train=False, download=True,
                                    transform=transforms.Compose([
                                        transforms.ToTensor(),
                                        normalize
                                    ]))
-    elif args.dataset == 'cifar100':
-        normalize = transforms.Normalize(mean=[0.5071, 0.4867, 0.4408],
-                                         std=[0.2675, 0.2565, 0.2761])
-        trainset = datasets.CIFAR100(args.data_url, train=True, download=True,
-                                      transform=transforms.Compose([
-                                          transforms.RandomCrop(32, padding=4),
-                                          transforms.RandomHorizontalFlip(),
-                                          transforms.ToTensor(),
-                                          normalize
-                                      ]))
-        valset = datasets.CIFAR100(args.data_url, train=False, download=True,
-                                    transform=transforms.Compose([
-                                        transforms.ToTensor(),
-                                        normalize
-                                    ]))
 
     train_loader = torch.utils.data.DataLoader(
         trainset, batch_size=args.batch_size, shuffle=True,
@@ -299,7 +303,7 @@ def main_worker(args):
     start_time = time.time()
     acc_avg = []
     FLOPs_avg = []
-    
+
     for epoch in range(args.start_epoch, args.epochs):
         ### Train for one epoch
         target_flops = adjust_target_flops(epoch, args)
@@ -331,7 +335,8 @@ def main_worker(args):
                 acc_avg.append(val_acc1)
                 FLOPs_avg.append(val_flops)
 
-            df = pd.DataFrame({'val_acc_top1': val_acc_top1, 'val_acc_top5': val_acc_top5, 'val_FLOPs': val_FLOPs, 'tr_acc_top1': tr_acc_top1,
+            df = pd.DataFrame({'val_acc_top1': val_acc_top1, 'val_acc_top5': val_acc_top5, 'val_FLOPs': val_FLOPs,
+                               'tr_acc_top1': tr_acc_top1,
                                'tr_acc_top5': tr_acc_top5, 'train_loss': train_loss, 'valid_loss': valid_loss,
                                'lr_log': lr_log, 'epoch_log': epoch_log})
             log_file = args.train_url + 'log.txt'
@@ -365,7 +370,7 @@ def main_worker(args):
         start_time = time.time()
 
     fout = open(os.path.join(args.train_url, 'log.txt'), mode='a', encoding='utf-8')
-    fout.write("%.6f\t%.6f\t" % (sum(acc_avg)/5, sum(FLOPs_avg)/5))
+    fout.write("%.6f\t%.6f\t" % (sum(acc_avg) / 5, sum(FLOPs_avg) / 5))
     print(' * Best Acc@1 {best_acc1:.3f} Acc@5 {best_acc1_corresponding_acc5:.3f}'
           .format(best_acc1=best_acc1, best_acc1_corresponding_acc5=best_acc1_corresponding_acc5))
     return
@@ -385,7 +390,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
     train_progress = ProgressMeter(
         train_batches_num,
-        [batch_time, data_time,act_rates, losses, losses_cls, losses_flops, FLOPs, top1, top5],
+        [batch_time, data_time, act_rates, losses, losses_cls, losses_flops, FLOPs, top1, top5],
         prefix="Epoch: [{}/{}]".format(epoch, args.epochs))
 
     model.train()
@@ -406,12 +411,14 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         adjust_gs_temperature(epoch, i, train_batches_num, args)
         if args.mixup > 0.0:
             input, target_a, target_b, lam = mixup_data(input, target, args.mixup)
-            output, _masks, flops = model.forward_calc_flops(input, temperature=args.temp, inference=False)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.temp, inference=False)
             loss_cls = mixup_criterion(criterion, output, target_a, target_b, lam)
         else:
-            output, _masks, flops = model.forward_calc_flops(input, temperature=args.temp, inference=False)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.temp, inference=False)
+
             loss_cls = criterion(output, target)
         flops /= 1e9
+
         ### Measure accuracy and record loss
         if args.mixup > 0.0:
             acc1_a, acc5_a = accuracy(output.data, target_a, topk=(1, 5))
@@ -420,24 +427,25 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
             acc5 = lam * acc5_a + (1 - lam) * acc5_b
         else:
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
-        
+
         act_rate = 0.0
-        loss_flops = 0.0
         # print(len(_masks))
         # assert(0==1)
         for act in _masks:
             act_rate += torch.mean(act)
-            
-        act_rate = torch.mean(act_rate/len(_masks))
-        loss_flops = args.lambda_act * torch.pow(target_flops-flops, 2)
+
+        act_rate = torch.mean(act_rate / len(_masks))
+        # print(target_flops, flops)
+        loss_flops = args.lambda_act * torch.pow(target_flops - flops, 2)
+        # print(flops, loss_cls, loss_flops)
         if args.dynamic_rate > 0:
-            loss = loss_cls + loss_flops 
+            loss = loss_cls + loss_flops
         else:
             loss = loss_cls + loss_flops if epoch >= args.optimize_rate_begin_epoch else loss_cls
-        
+
         FLOPs.update(flops.item(), input.size(0))
         act_rates.update(act_rate.item(), input.size(0))
-        losses_flops.update(loss_flops.item(),input.size(0))
+        losses_flops.update(loss_flops.item(), input.size(0))
         losses_cls.update(loss_cls.item(), input.size(0))
         losses.update(loss.item(), input.size(0))
         top1.update(acc1.item(), input.size(0))
@@ -459,17 +467,19 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
     return top1.avg, top5.avg, losses.avg, lr
 
+
 def validate(val_loader, model, criterion, args, target_flops):
     batch_time = AverageMeter('Time', ':6.3f')
     losses_cls = AverageMeter('Loss_cls', ':.4e')
     losses_flops = AverageMeter('Loss_activate', ':.4e')
+    act_rates = AverageMeter('Activation rate', ':.2e')
     losses = AverageMeter('Loss', ':.4e')
     FLOPs = AverageMeter('Activation rate', ':.2e')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
     progress = ProgressMeter(
         len(val_loader),
-        [batch_time, FLOPs,losses, losses_cls, losses_flops, top1, top5],
+        [batch_time, FLOPs, losses, losses_cls, losses_flops, top1, top5],
         prefix='Test: ')
 
     model.eval()
@@ -482,19 +492,19 @@ def validate(val_loader, model, criterion, args, target_flops):
 
             ### Compute output single crop
             # output = model(input)
-            output, _masks, flops = model.forward_calc_flops(input, temperature=args.temp, inference=False)
-            loss_cls= criterion(output, target)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.temp, inference=False)
+            loss_cls = criterion(output, target)
             act_rate = 0.0
             loss_flops = 0.0
             for act in _masks:
                 act_rate += torch.mean(act)
-            loss_flops = args.lambda_act * torch.pow(target_flops-flops, 2)
-            act_rate = torch.mean(act_rate/len(_masks))
+            loss_flops = args.lambda_act * torch.pow(target_flops - flops, 2)
+            act_rate = torch.mean(act_rate / len(_masks))
             loss = loss_cls + loss_flops
-            
+
             FLOPs.update(flops.item(), input.size(0))
             act_rates.update(act_rate.item(), input.size(0))
-            losses_flops.update(loss_flops.item(),input.size(0))
+            losses_flops.update(loss_flops.item(), input.size(0))
             losses_cls.update(loss_cls.item(), input.size(0))
 
             ### Measure accuracy and record loss
@@ -520,15 +530,16 @@ def adjust_gs_temperature(epoch, step, len_epoch, args):
     T_total = args.epochs * len_epoch
     T_cur = epoch * len_epoch + step
     if args.temp_scheduler == 'exp':
-        alpha = math.pow(args.t_last/args.t0, 1/(args.epochs*len_epoch))
-        args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
+        alpha = math.pow(args.t_last / args.t0, 1 / (args.epochs * len_epoch))
+        args.temp = math.pow(alpha, epoch * len_epoch + step) * args.t0
     elif args.temp_scheduler == 'linear':
         args.temp = (args.t0 - args.t_last) * (1 - T_cur / T_total) + args.t_last
     else:
-        args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / T_total)) + args.t_last
+        args.temp = 0.5 * (args.t0 - args.t_last) * (1 + math.cos(math.pi * T_cur / T_total)) + args.t_last
+
 
 def adjust_target_flops(epoch, args):
-    if not args.dynamic_rate>0:
+    if not args.dynamic_rate > 0:
         return args.target_flops
     # if epoch < args.epochs // 4:
     #     target_flops = 1.0
@@ -541,10 +552,11 @@ def adjust_target_flops(epoch, args):
     # return target_flops
 
     if epoch < args.optimize_rate_begin_epoch:
-        target_flops = args.full_flops
+        target_flops = args.full_flops.item()
     else:
         target_flops = args.target_flops
     return target_flops
+
 
 if __name__ == '__main__':
     main()
