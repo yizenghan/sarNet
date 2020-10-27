@@ -43,7 +43,8 @@ def plot(x, y, label=None, accumulated=False, linestyle='-', linewidth=2, isErro
                 
 plt.scatter(x=4.1007, y=100-77.26, c='k', marker='o', label='ResNet50')
 
-plt.scatter(x=2.5, y=22.20, c='r', marker='o', label='oct-ResNet50 (preAct)')
+plt.scatter(x=2.5, y=22.20, c='r', marker='o', label='oct-ResNet50 (+3)')
+plt.scatter(x=2.4, y=22.60, c='#ffcccc', marker='o', label='oct-ResNet50')
 
 flops_g1 = [2.48,2.85]
 flops_g1 = [a*1 for a in flops_g1]
