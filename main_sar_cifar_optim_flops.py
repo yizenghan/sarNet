@@ -295,9 +295,9 @@ def main_worker(args):
         ### Train for one epoch
         target_flops = adjust_target_flops(epoch, args)
         print(f'Target rate: {target_flops}')
-        # tr_acc1, tr_acc5, tr_loss, lr = \
-        #     train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_flops)
-        tr_acc1, tr_acc5, tr_loss, lr = 0,0,0,0
+        tr_acc1, tr_acc5, tr_loss, lr = \
+            train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_flops)
+        # tr_acc1, tr_acc5, tr_loss, lr = 0,0,0,0
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
             val_acc1, val_acc5, val_loss, val_rate, val_flops = validate(val_loader, model, criterion, args, target_flops)
