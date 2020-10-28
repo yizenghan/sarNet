@@ -155,7 +155,7 @@ class BasicBlock(nn.Module):
             x_refine = self.bn1_refine(x_refine)
             x_refine = self.relu(x_refine)
 
-            mask2 = mask
+            mask2 = mask.clone()
             _,c,h,w = x_refine.shape
             if g > 1:
                 mask2 = mask2.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
@@ -236,7 +236,7 @@ class BasicBlock(nn.Module):
             x_refine = self.relu(x_refine)
             flops += ratio * self.flops_per_pixel_refine1 * x_refine.shape[2] * x_refine.shape[3]
 
-            mask2 = mask
+            mask2 = mask.clone()
             _,c,h,w = x_refine.shape
             if g > 1:
                 mask2 = mask2.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)

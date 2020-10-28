@@ -128,7 +128,7 @@ class BasicBlock_refine(nn.Module):
 
         c_out = out.shape[1]
         # print(mask1.shape, mask.shape)
-        mask2 = mask
+        mask2 = mask.clone()
         if g > 1:
             mask2 = mask2.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
         mask2 = F.interpolate(mask2, size = (h,w))
@@ -171,7 +171,7 @@ class BasicBlock_refine(nn.Module):
 
         c_out = out.shape[1]
         # print(mask1.shape, mask.shape)
-        mask2 = mask
+        mask2 = mask.clone()
         if g > 1:
             mask2 = mask2.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
         mask2 = F.interpolate(mask2, size = (h,w))
