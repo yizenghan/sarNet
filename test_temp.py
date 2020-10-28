@@ -3,7 +3,7 @@ import numpy
 import matplotlib.pyplot as plt
 
 args_target_rate = 0.3
-args_epochs = 110
+args_epochs = 160
 
 def adjust_target_rate(epoch):
     if epoch < args_epochs // 4:
@@ -17,7 +17,7 @@ def adjust_target_rate(epoch):
     return target_rate
 
 t0 = 5.0
-len_epoch = 1252
+len_epoch = 782
 def adjust_gs_temperature(epoch, step, len_epoch,temp_scheduler='linear'):
     T_total = args_epochs * len_epoch
     T_cur = epoch * len_epoch + step

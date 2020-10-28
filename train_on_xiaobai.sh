@@ -38,7 +38,8 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 \
 python main_sar_local2.py \
 --test_code 0 \
 --config configs/_oct_r50_ls_warmup.py \
---train_url ./log/__octave_resnet50/ \
+--resume /data/hanyz/code/sarNet/log/__octave_resnet50/checkpoint.pth.tar \
+--train_url ./log/__octave_resnet50_resume/ \
 --no_train_on_cloud \
 --workers 128 \
 --use_amp 0 \
