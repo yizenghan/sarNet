@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from gumbel_softmax import GumbleSoftmax
+from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -510,7 +510,7 @@ def sar_resnet_cifar_alphaBase(depth, num_classes=10, patch_groups=1, mask_size=
                       alpha=alpha, beta=beta, base_scale=base_scale)
     return model
 
-def sar_resnet50_cifar_alphaBase_4stage(args):
+def sar_resnet50_alphaBase_4stage_cifar(args):
     return sar_resnet_cifar_alphaBase(depth=50, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
 
 
@@ -525,7 +525,7 @@ if __name__ == "__main__":
     args.alpha = 2
     args.beta = 1
     args.base_scale = 2
-    sar_res = sar_resnet50_cifar_alphaBase_4stage(args)
+    sar_res = sar_resnet50_alphaBase_4stage_cifar(args)
     with torch.no_grad():
         
         print(sar_res)

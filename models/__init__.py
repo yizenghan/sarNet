@@ -30,3 +30,6 @@ from .sar_preAct_resnet import *
 from .sar_resnet_baseAlpha import *
 
 from .sar_resnet_freFuse import *
+
+from .sar_resnet_cifar3stage_alphaBase import *
+from .sar_resnet_cifar4stage_alphaBase import *
