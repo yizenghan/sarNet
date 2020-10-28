@@ -365,7 +365,7 @@ def main_worker(args):
         start_time = time.time()
 
     fout = open(os.path.join(args.train_url, 'log.txt'), mode='a', encoding='utf-8')
-    fout.write("%.6f\t%.6f\t" % (sum(acc_avg)/5, sum(rate_avg) / 5, sum(flops_avg) / 5))
+    fout.write("%.6f\t%.6f\t%.6f" % (sum(acc_avg)/5, sum(rate_avg) / 5, sum(flops_avg) / 5))
     print(' * Best Acc@1 {best_acc1:.3f} Acc@5 {best_acc1_corresponding_acc5:.3f}'
           .format(best_acc1=best_acc1, best_acc1_corresponding_acc5=best_acc1_corresponding_acc5))
     return
