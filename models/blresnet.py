@@ -190,13 +190,13 @@ class bLResNet(nn.Module):
         x = self.bn_bl_init(x)
         x = self.relu(x)
 
-        # print('before layer 1:', x.shape)
+        print('before layer 1:', x.shape)
         x = self.layer1(x)
-        # print('before layer 2:', x.shape)
+        print('before layer 2:', x.shape)
         x = self.layer2(x)
-        # print('before layer 3:', x.shape)
+        print('before layer 3:', x.shape)
         x = self.layer3(x)
-        # print('before layer 4:', x.shape)
+        print('before layer 4:', x.shape)
         x = self.layer4(x)
 
         x = self.gappool(x)

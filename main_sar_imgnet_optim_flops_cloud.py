@@ -1,5 +1,5 @@
-# import moxing as mox
-# mox.file.shift('os', 'mox')
+import moxing as mox
+mox.file.shift('os', 'mox')
 
 import os
 import argparse
@@ -148,14 +148,15 @@ train_loss = []
 valid_loss = []
 lr_log = []
 epoch_log = []
+val_act_rate = []
 val_FLOPs = []
 
 def main():
-    str_t0 = str(args.t0).replace('.', '_')
-    str_lambda = str(args.lambda_act).replace('.', '_')
-    str_ta = str(args.target_flops).replace('.', '_')
-    save_path = f'{args.train_url}_OptimFlops_g{args.patch_groups}_a{args.alpha}_s{args.base_scale}_t0_{str_t0}_target{str_ta}_optimizeFromEpoch{args.optimize_rate_begin_epoch}_lambda_{str_lambda}_dynamicRate{args.dynamic_rate}/'
-    args.train_url = save_path
+    # str_t0 = str(args.t0).replace('.', '_')
+    # str_lambda = str(args.lambda_act).replace('.', '_')
+    # str_ta = str(args.target_flops).replace('.', '_')
+    # save_path = f'{args.train_url}_OptimFlops_g{args.patch_groups}_a{args.alpha}_s{args.base_scale}_t0_{str_t0}_target{str_ta}_optimizeFromEpoch{args.optimize_rate_begin_epoch}_lambda_{str_lambda}_dynamicRate{args.dynamic_rate}/'
+    # args.train_url = save_path
     if not args.train_on_cloud:
         if not os.path.exists(args.train_url):
             os.makedirs(args.train_url)
@@ -211,6 +212,7 @@ def main_worker(gpu, ngpus_per_node, args):
     global lr_log
     global epoch_log
     global val_FLOPs
+    global val_act_rate
     args.gpu = gpu
     args.cfg = Config.fromfile(args.config)
     print(args.cfg)
@@ -340,6 +342,8 @@ def main_worker(gpu, ngpus_per_node, args):
             train_loss = checkpoint['train_loss']
             valid_loss = checkpoint['valid_loss']
             lr_log = checkpoint['lr_log']
+            val_act_rate = checkpoint['val_act_rate']
+            val_FLOPs = checkpoint['val_FLOPs']
             try:
                 epoch_log = checkpoint['epoch_log']
             except:
@@ -398,7 +402,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
-            val_acc1, val_acc5, val_loss, val_flops = validate(val_loader, model, criterion, args, target_flops)
+            val_acc1, val_acc5, val_loss, val_rate, val_flops = validate(val_loader, model, criterion, args, target_flops)
             # assert(0==1)
             ### Remember best Acc@1 and save checkpoint
             is_best = val_acc1 > best_acc1
@@ -412,14 +416,18 @@ def main_worker(gpu, ngpus_per_node, args):
                 val_acc_top5.append(val_acc5)
                 tr_acc_top1.append(tr_acc1)
                 tr_acc_top5.append(tr_acc5)
+                val_act_rate.append(val_rate)
                 val_FLOPs.append(val_flops)
                 train_loss.append(tr_loss)
                 valid_loss.append(val_loss)
                 lr_log.append(lr)
                 epoch_log.append(epoch)
-                df = pd.DataFrame({'val_acc_top1': val_acc_top1, 'val_acc_top5': val_acc_top5, 'val_FLOPs': val_FLOPs, 'tr_acc_top1': tr_acc_top1,
-                                   'tr_acc_top5': tr_acc_top5, 'train_loss': train_loss, 'valid_loss': valid_loss,
-                                   'lr_log': lr_log, 'epoch_log': epoch_log})
+                df = pd.DataFrame({'val_acc_top1': val_acc_top1, 'val_acc_top5': val_acc_top5, 
+                                'val_act_rate': val_act_rate, 'val_FLOPs': val_FLOPs, 
+                                'tr_acc_top1': tr_acc_top1,
+                                'tr_acc_top5': tr_acc_top5, 'train_loss': train_loss, 
+                                'valid_loss': valid_loss,
+                                'lr_log': lr_log, 'epoch_log': epoch_log})
                 log_file = args.train_url + 'log.txt'
                 if args.train_on_cloud:
                     with mox.file.File(log_file, "w") as f:
@@ -437,6 +445,8 @@ def main_worker(gpu, ngpus_per_node, args):
                     'optimizer': optimizer.state_dict(),
                     'val_acc_top1': val_acc_top1,
                     'val_acc_top5': val_acc_top5,
+                    'val_act_rate': val_act_rate,
+                    'val_FLOPs': val_FLOPs,
                     'tr_acc_top1': tr_acc_top1,
                     'tr_acc_top5': tr_acc_top5,
                     'train_loss': train_loss,
@@ -554,7 +564,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         if i % args.print_freq == 0:
             train_progress.display(i)
             print('LR: %6.4f' % (lr))
-            print('FLOPs: %6.4f' % (flops))
+            print('FLOPs: %6.4f' % (FLOPs.avg))
 
     return top1.avg, top5.avg, losses.avg, lr
 
@@ -583,7 +593,7 @@ def validate(val_loader, model, criterion, args, target_flops):
 
             ### Compute output single crop
             # output = model(input)
-            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.temp, inference=False)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.t_last, inference=False)
             flops /= 1e9
             loss_cls= criterion(output, target)
             
@@ -638,7 +648,7 @@ def validate(val_loader, model, criterion, args, target_flops):
     print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
-    return top1.avg, top5.avg, losses.avg, FLOPs.avg
+    return top1.avg, top5.avg, losses.avg, act_rates.avg, FLOPs.avg
 
 
 def adjust_gs_temperature(epoch, step, len_epoch, args):

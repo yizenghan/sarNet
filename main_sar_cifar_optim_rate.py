@@ -156,13 +156,13 @@ def main_worker(args):
     global best_acc1_corresponding_acc5
     global val_acc_top1
     global val_acc_top5
-    global val_act_rate
     global tr_acc_top1
     global tr_acc_top5
     global train_loss
     global valid_loss
     global lr_log
     global epoch_log
+    global val_act_rate
     global val_FLOPs
     print(args)
 
@@ -484,7 +484,7 @@ def validate(val_loader, model, criterion, args, target_rate):
 
             ### Compute output single crop
             # output = model(input)
-            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.temp, inference=False)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.t_last, inference=False)
             flops /= 1e9
             loss_cls= criterion(output, target)
             act_rate = 0.0

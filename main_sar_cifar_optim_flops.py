@@ -115,14 +115,16 @@ best_acc1 = 0
 best_acc1_corresponding_acc5 = 0
 val_acc_top1 = []
 val_acc_top5 = []
-val_act_rate = []
-val_FLOPs = []
+
 tr_acc_top1 = []
 tr_acc_top5 = []
 train_loss = []
 valid_loss = []
 lr_log = []
 epoch_log = []
+
+val_act_rate = []
+val_FLOPs = []
 
 
 def main():
@@ -454,7 +456,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         if i % args.print_freq == 0:
             train_progress.display(i)
             print('LR: %6.4f' % (lr))
-            print('FLOPs: %6.4f' % (flops))
+            print('FLOPs: %6.4f' % (FLOPs.avg))
 
     return top1.avg, top5.avg, losses.avg, lr
 
@@ -482,7 +484,7 @@ def validate(val_loader, model, criterion, args, target_flops):
 
             ### Compute output single crop
             # output = model(input)
-            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.temp, inference=False)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.t_last, inference=False)
             flops /= 1e9
             loss_cls = criterion(output, target)
             act_rate = 0.0
