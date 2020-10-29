@@ -529,19 +529,27 @@ def adjust_gs_temperature(epoch, step, len_epoch, args):
         alpha = math.pow(args.t_last/args.t0, 1/(args.epochs*len_epoch))
         args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
     elif args.temp_scheduler == 'linear':
-        args.temp = (args.t0 - args.t_last) * (1 - T_cur / T_total) + args.t_last
+        if epoch < args.epochs // 2:
+            args.temp = (args.t0 - args.t_last) * (1 - T_cur / (T_total/2)) + args.t_last
+        else:
+            args.temp = args.t_last
     else:
-        args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / T_total)) + args.t_last
+        if epoch < args.epochs // 2:
+            args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / (T_total/2))) + args.t_last
+        else:
+            args.temp = args.t_last
 
 def adjust_target_rate(epoch, args):
     if not args.dynamic_rate > 0:
         return args.target_rate
-
-    if epoch < args.optimize_rate_begin_epoch:
-        target_rate = 1.0
     else:
-        target_rate = args.target_rate
-    return target_rate
+        if epoch < args.epochs // 6 :
+            target_rate = 0.9
+        elif epoch < args.epochs // 3:
+            target_rate = args.target_rate + (0.9 - args.target_rate) / 2
+        else:
+            target_rate = args.target_rate
+        return target_rate
 
 if __name__ == '__main__':
     main()
