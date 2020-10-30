@@ -68,13 +68,11 @@ parser.add_argument('--width', default=1, type=int)
 parser.add_argument('--base_scale', default=2, type=int)
 # mask control
 parser.add_argument('--t0', default=5.0, type=float, metavar='M', help='momentum')
-parser.add_argument('--t_last', default=1e-6, type=float, metavar='M', help='momentum')
+parser.add_argument('--t_last', default=1e-3, type=float, metavar='M', help='momentum')
 parser.add_argument('--target_rate', default=0, type=float, metavar='M', help='momentum')
 parser.add_argument('--lambda_act', default=0.1, type=float, metavar='M', help='momentum')
 parser.add_argument('--temp', default=0.1, type=float, metavar='M', help='momentum')
 parser.add_argument('--lrfact', default=1, type=float, help='learning rate factor')
-parser.add_argument('--dynamic_rate', default=0, type=int)
-parser.add_argument('--optimize_rate_begin_epoch', default=80, type=int)
 parser.add_argument('--temp_scheduler', default='cosine', type=str)
 
 parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
@@ -105,6 +103,14 @@ parser.add_argument('--test_code', default=0, type=int,
                     help='whether to test the code')
 
 parser.add_argument('--start_eval_epoch', default=0, type=int)
+parser.add_argument('--round', default=0, type=int)
+parser.add_argument('--dynamic_rate', default=0, type=int)
+
+parser.add_argument('--t_last_epoch', default=160, type=int)
+
+parser.add_argument('--ta_begin_epoch', default=80, type=int)
+parser.add_argument('--ta_last_epoch', default=120, type=int)
+
 args = parser.parse_args()
 
 if args.train_on_cloud:
@@ -138,7 +144,8 @@ def main():
             str_t0 = str(args.t0).replace('.', '_')
             str_lambda = str(args.lambda_act).replace('.', '_')
             str_ta = str(args.target_rate).replace('.', '_')
-            save_path = f'{args.train_url}{args.dataset}/{args.arch_config}/optimRate_g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}_t0_{str_t0}_target{str_ta}_optimizeFromEpoch{args.optimize_rate_begin_epoch}_lambda_{str_lambda}_dynamicRate{args.dynamic_rate}/'
+            str_t_last = str(args.t_last).replace('.', '_')
+            save_path = f'{args.train_url}{args.dataset}/{args.arch_config}/_round{args.round}_optimRate_g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/'
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
             args.train_url = save_path
@@ -436,7 +443,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         if args.dynamic_rate > 0:
             loss = loss_cls + loss_act_rate
         else:
-            loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
+            loss = loss_cls + loss_act_rate if epoch >= args.ta_begin_epoch else loss_cls
         
         act_rates.update(act_rate.item(), input.size(0))
         losses_act.update(loss_act_rate.item(),input.size(0))
@@ -521,35 +528,38 @@ def validate(val_loader, model, criterion, args, target_rate):
 
     return top1.avg, top5.avg, losses.avg, act_rates.avg, FLOPs.avg
 
-
 def adjust_gs_temperature(epoch, step, len_epoch, args):
-    T_total = args.epochs * len_epoch
-    T_cur = epoch * len_epoch + step
-    if args.temp_scheduler == 'exp':
-        alpha = math.pow(args.t_last/args.t0, 1/(args.epochs*len_epoch))
-        args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
-    elif args.temp_scheduler == 'linear':
-        if epoch < args.epochs // 2:
-            args.temp = (args.t0 - args.t_last) * (1 - T_cur / (T_total/2)) + args.t_last
-        else:
-            args.temp = args.t_last
+    if epoch >= args.t_last_epoch:
+        return args.t_last
     else:
-        if epoch < args.epochs // 2:
-            args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / (T_total/2))) + args.t_last
+        T_total = args.t_last_epoch * len_epoch
+        T_cur = epoch * len_epoch + step
+        if args.temp_scheduler == 'exp':
+            alpha = math.pow(args.t_last / args.t0, 1 / T_total)
+            args.temp = math.pow(alpha, T_cur) * args.t0
+        elif args.temp_scheduler == 'linear':
+            args.temp = (args.t0 - args.t_last) * (1 - T_cur / T_total) + args.t_last
         else:
-            args.temp = args.t_last
+            args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / (T_total))) + args.t_last
 
 def adjust_target_rate(epoch, args):
-    if not args.dynamic_rate > 0:
+    if args.dynamic_rate == 0:
         return args.target_rate
-    else:
-        if epoch < args.epochs // 6 :
-            target_rate = 0.9
-        elif epoch < args.epochs // 3:
-            target_rate = args.target_rate + (0.9 - args.target_rate) / 2
+    elif args.dynamic_rate == 1:
+        if epoch < args.ta_last_epoch // 2:
+            target_rate = 1.0
         else:
             target_rate = args.target_rate
-        return target_rate
+    else:
+        if epoch < args.ta_begin_epoch :
+            target_rate = 1.0
+        elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
+            target_rate = args.target_rate + (1.0 - args.target_rate)/3*2
+        elif epoch < args.ta_last_epoch:
+            target_rate = args.target_rate + (1.0 - args.target_rate)/3
+        else:
+            target_rate = args.target_rate
+    return target_rate
 
 if __name__ == '__main__':
     main()

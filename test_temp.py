@@ -1,55 +1,72 @@
 import math
-import numpy
 import matplotlib.pyplot as plt
+import argparse
 
-args_target_rate = 0.25
-args_epochs = 300
-args_temp_scheduler = 'cosine'
-args_t0 = 5.0 
-args_t_last = 1e-2
-len_epoch = 782
+parser = argparse.ArgumentParser(description='PyTorch SARNet')
+parser.add_argument('--t_last_epoch', default=160, type=int)
+parser.add_argument('--t_last', default=1e-2, type=int)
+# parser.add_argument('--epochs', default=160, type=int)
+parser.add_argument('--t0', default=1, type=int)
+parser.add_argument('--dynamic_rate', default=2, type=int)
+parser.add_argument('--ta_begin_epoch', default=60, type=int)
+parser.add_argument('--ta_last_epoch', default=100, type=int)
+parser.add_argument('--target_rate', default=0.3, type=float, metavar='M', help='momentum')
+parser.add_argument('--temp', default=0.1, type=float, metavar='M', help='momentum')
+parser.add_argument('--temp_scheduler', default='exp', type=str)
+args = parser.parse_args()
 
-def adjust_gs_temperature(epoch, step, len_epoch):
-    T_total = args_epochs * len_epoch
-    T_cur = epoch * len_epoch + step
-    if args_temp_scheduler == 'exp':
-        alpha = math.pow(args_t_last/args_t0, 1/(args_epochs*len_epoch))
-        args_temp = math.pow(alpha, epoch*len_epoch+step)*args_t0
-    elif args_temp_scheduler == 'linear':
-        if epoch < args_epochs // 2:
-            args_temp = (args_t0 - args_t_last) * (1 - T_cur / (T_total/2)) + args_t_last
-        else:
-            args_temp = args_t_last
+
+'''def adjust_gs_temperature(epoch, step, len_epoch, args):
+    if epoch >= args.t_last_epoch:
+        return args.t_last
     else:
-        if epoch < args_epochs // 2:
-            args_temp = 0.5 * (args_t0-args_t_last) * (1 + math.cos(math.pi * T_cur / (T_total/2))) + args_t_last
+        T_total = args.t_last_epoch * len_epoch
+        T_cur = epoch * len_epoch + step
+        if args.temp_scheduler == 'exp':
+            alpha = math.pow(args.t_last / args.t0, 1 / T_total)
+            args.temp = math.pow(alpha, T_cur) * args.t0
+        elif args.temp_scheduler == 'linear':
+            args.temp = (args.t0 - args.t_last) * (1 - T_cur / T_total) + args.t_last
         else:
-            args_temp = args_t_last
-    return args_temp
+            args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / (T_total))) + args.t_last'''
 
-def adjust_target_rate(epoch):
-    if epoch < args_epochs // 6 :
-        target_rate = 0.9
-    elif epoch < args_epochs // 3:
-        target_rate = args_target_rate + (0.9 - args_target_rate) / 2
+def adjust_target_rate(epoch, step, len_epoch, args):
+    if args.dynamic_rate == 0:
+        return args.target_rate
+    elif args.dynamic_rate == 1:
+        if epoch < args.ta_last_epoch // 2:
+            target_rate = 1.0
+        else:
+            target_rate = args.target_rate
     else:
-        target_rate = args_target_rate
+        if epoch < args.ta_begin_epoch :
+            target_rate = 1.0
+        # elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
+        #     target_rate = args.target_rate + (1.0 - args.target_rate)/3*2
+        elif epoch < args.ta_last_epoch:
+            Ta_total = (args.ta_last_epoch-args.ta_begin_epoch)* len_epoch
+            Ta_cur = (epoch-args.ta_begin_epoch)* len_epoch + step
+            alpha = math.pow(args.target_rate / 1, 1 / Ta_total)
+            target_rate = math.pow(alpha, Ta_cur)
+            # target_rate = args.target_rate + (1.0 - args.target_rate)/3
+        else:
+            target_rate = args.target_rate
     return target_rate
 
-t = []
+temp_list = []
+tar_list = []
+epochs = 160
+for epoch in range(epochs):
+    # target = adjust_target_rate(epoch, args)
+    # tar_list.append(target)
+    len_epoch = 100
+    for i in range(len_epoch):
+        # adjust_gs_temperature(epoch, i, len_epoch, args)
+        # temp_list.append(args.temp)
+        target = adjust_target_rate(epoch, i, len_epoch, args)
+        tar_list.append(target)
 
-for i in range(args_epochs):
-    for j in range(len_epoch):
-        t.append(adjust_gs_temperature(i, j, len_epoch))
-
-# print(t[-1])
-# plt.plot(t)
-# plt.show()
-# plt.savefig('tem.png')
-
-ta = []
-for i in range(args_epochs):
-    ta.append(adjust_target_rate(i))
-plt.plot(ta)
-plt.show()
-plt.savefig('target_rate.png')
+# print(temp_list[80*len_epoch])
+x = range(epochs*len_epoch)
+plt.plot(x, tar_list, color='green', label='temp')
+plt.savefig("tar.jpg")
