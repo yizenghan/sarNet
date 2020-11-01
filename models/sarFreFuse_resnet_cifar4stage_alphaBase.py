@@ -662,12 +662,12 @@ if __name__ == "__main__":
     from op_counter import measure_model
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
-    args.num_classes = 100
-    args.patch_groups = 2
+    args.num_classes = 10
+    args.patch_groups = 4
     args.mask_size = 4
     args.alpha = 2
     args.beta = 1
-    args.base_scale = 2
+    args.base_scale = 4
     with torch.no_grad():
         sar_res = sarFrefuse_resnet50_alphaBase_cifar(args)
         print(sar_res)
