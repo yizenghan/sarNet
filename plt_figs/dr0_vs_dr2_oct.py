@@ -12,7 +12,7 @@ rcParams['font.size'] = 5
 rcParams['legend.fontsize'] = 12
 rc('font', **{'family':'serif', 'serif':['Computer Modern'], 'monospace': ['Computer Modern Typewriter']})
 
-pp = PdfPages('_interval_exp_vs_cos.pdf')
+pp = PdfPages('dr0_vs_dr2_50g2a2s2.pdf')
 
 max_y = 15
 max_x = 4.5e8
@@ -20,6 +20,7 @@ fig, ax = plt.subplots(figsize=(6, 4.585))
 
 ls = [':']
 
+plt.scatter(x=0.74, y=100-94.72, c='k', marker='o', label='Oct-ResNet50')
 
 def plot(x, y, label=None, accumulated=False, linestyle='-', linewidth=2, isError = False,
          isPercentage=False, alpha=1., color=None, marker=None, edgecolor=None, step=False, zorder=None):
@@ -43,30 +44,16 @@ def plot(x, y, label=None, accumulated=False, linestyle='-', linewidth=2, isErro
                 
 
 
-flops = [0.07376, 0.09214, 0.11016, 0.13072]
+flops = [0.59,0.64,0.73, 0.84]
 flops = [a*1 for a in flops]
-acc = [93.32, 93.73, 94.05, 94.49]
+acc = [94.31, 94.48, 94.65, 95.31]
 obj = plot(flops, acc, label="T1, add loss at 150", isError = True, marker='D', linestyle='-', linewidth=1, color='#00ccff')
 
-flops = [0.07496, 0.09267, 0.11012]
+flops = [0.605, 0.674, 0.7413]
 flops = [a*1 for a in flops]
-acc = [93.42, 93.97, 94.55]
+acc = [94.36,95.08, 95.20]
 obj = plot(flops, acc, label="T1, ep300, dr=2, 90to150", isError = True, marker='D', linestyle='-', linewidth=1, color='#A0522D')
 
-flops = [0.0744, 0.0930, 0.1099]
-flops = [a*1 for a in flops]
-acc = [93.11, 93.94, 93.99]
-obj = plot(flops, acc, label="T1, internal5, 0 to 200, exp", isError = True, marker='D', linestyle='-', linewidth=1, color='#008000')
-
-flops = [0.0729, 0.0879, 0.1093]
-flops = [a*1 for a in flops]
-acc = [92.84, 93.00, 93.63]
-obj = plot(flops, acc, label="T1, internal5, 0 to 200, cosine", isError = True, marker='D', linestyle='-', linewidth=1, color='#ff66ff')
-
-flops = [0.0862, 0.0967, 0.1100]
-flops = [a*1 for a in flops]
-acc = [93.60, 94.31, 94.41]
-obj = plot(flops, acc, label="T1, internal5, 100 to 300, cosine", isError = True, marker='D', linestyle='-', linewidth=1, color='#ff3300')
 
 ax.spines['left'].set_color('k')
 ax.spines['left'].set_linewidth(0.5)
@@ -81,11 +68,11 @@ ax.tick_params(axis='y', length=4, labelsize=12)
 
 
 plt.grid(color='#000000', alpha=0.1, linestyle='-', linewidth=0.5)
-plt.ylim(5.4, 7.1)
-plt.xlim(0.069, 0.145)
+plt.ylim(5, 6)
+plt.xlim(0.55, 0.85)
 # plt.grid()
-ax.yaxis.set_ticks(np.arange(5.4, 7.1, 0.1))
-ax.xaxis.set_ticks(np.arange(0.069, 0.145, 0.01))
+ax.yaxis.set_ticks(np.arange(5, 6, 0.2))
+ax.xaxis.set_ticks(np.arange(0.55, 0.85, 0.05))
 # ax.set_xscale("log", nonposx='clip')
 
 plt.tight_layout(pad=2.5, w_pad=2, h_pad=1)
