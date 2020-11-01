@@ -356,18 +356,31 @@ class OctResNet_cifar(nn.Module):
 
         return x, flops
 
-def oct_resnet50_cifar(pretrained=False, **kwargs):
+def oct_resnet26_cifar(args):
+    """Constructs a Octave ResNet-26 model.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = OctResNet_cifar(Bottleneck, [2, 2, 2, 2], num_classes = args.num_classes)
+    return model
+
+def oct_resnet50_cifar(args):
     """Constructs a Octave ResNet-200 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = OctResNet_cifar(Bottleneck, [3, 4, 6, 3], **kwargs)
+    model = OctResNet_cifar(Bottleneck, [3, 4, 6, 3], num_classes = args.num_classes)
     return model
 
 if __name__ == '__main__':
     from op_counter import measure_model
-    net = oct_resnet50_cifar()
+    import argparse
+    parser = argparse.ArgumentParser(description='PyTorch resnet Training')
+    args = parser.parse_args()
+    args.num_classes = 10
+    net = oct_resnet26_cifar(args)
     x = torch.rand(1,3,32,32)
     with torch.no_grad():
         y = net(x)
