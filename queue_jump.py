@@ -6,7 +6,7 @@ def main():
 def check_gpu_memory():
     pynvml.nvmlInit()
 
-    gpulist = [0,3]
+    gpulist = [2,3]
     deviceCount = pynvml.nvmlDeviceGetCount()
     
     print('There are {} visiable GPUs'.format(deviceCount))

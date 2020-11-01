@@ -6,7 +6,6 @@ from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
-
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -181,7 +180,7 @@ class Bottleneck_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.75
+        # ratio = 0.25
         mask1 = mask.clone()
         if g > 1:
             mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
@@ -296,17 +295,17 @@ class sarModule(nn.Module):
         refine_last_relu = True if beta > 1 else False
         self.base_module = self._make_layer(block_base, in_channels, out_channels// alpha, blocks - 1, 2, last_relu=base_last_relu, base_scale=base_scale)
         
-        self.refine_module = self._make_layer(block_refine, in_channels, out_channels*beta , blocks - 1, 1, last_relu=refine_last_relu, base_scale=base_scale)
+        self.refine_module = self._make_layer(block_refine, in_channels, int(out_channels*beta) , blocks - 1, 1, last_relu=refine_last_relu, base_scale=base_scale)
         self.alpha = alpha
         self.beta = beta
-        if alpha > 1:
+        if alpha != 1:
             self.base_transform = nn.Sequential(
                 nn.Conv2d(out_channels // alpha, out_channels, kernel_size=1, bias=False),
                 nn.BatchNorm2d(out_channels)
             )
-        if beta > 1:
+        if beta != 1:
             self.refine_transform = nn.Sequential(
-                nn.Conv2d(out_channels * beta, out_channels, kernel_size=1, bias=False),
+                nn.Conv2d(int(out_channels * beta), out_channels, kernel_size=1, bias=False),
                 nn.BatchNorm2d(out_channels)
             )
         self.fusion = self._make_layer(block_base, out_channels, out_channels, 1, stride=stride, base_scale=base_scale)
@@ -347,9 +346,9 @@ class sarModule(nn.Module):
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
             x_refine = self.refine_module[i](x_refine, mask, inference=False) 
-        if self.alpha > 1:
+        if self.alpha != 1:
             x_base = self.base_transform(x_base)
-        if self.beta > 1:
+        if self.beta != 1:
             x_refine= self.refine_transform(x_refine)
         _,_,h,w = x_refine.shape
         x_base = F.interpolate(x_base, size = (h,w))
@@ -373,10 +372,10 @@ class sarModule(nn.Module):
 
         c = x_base.shape[1]
         _,_, h,w = x_refine.shape
-        if self.alpha > 1:
+        if self.alpha != 1:
             x_base = self.base_transform(x_base)
             flops += c * x_base.shape[1] * x_base.shape[2] * x_base.shape[3]
-        if self.beta > 1:
+        if self.beta != 1:
             c_in = x_refine.shape[1]
             x_refine = self.refine_transform(x_refine)
             flops += c_in * x_refine.shape[1] * x_refine.shape[2] * x_refine.shape[3]
@@ -519,12 +518,12 @@ if __name__ == "__main__":
     from op_counter import measure_model
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
-    args.num_classes = 100
-    args.patch_groups = 2
+    args.num_classes = 10
+    args.patch_groups = 8
     args.mask_size = 4
     args.alpha = 2
     args.beta = 1
-    args.base_scale = 2
+    args.base_scale = 4
     sar_res = sar_resnet50_alphaBase_4stage_cifar(args)
     with torch.no_grad():
         

@@ -359,8 +359,8 @@ class sarResNet(nn.Module):
         for k, m in self.named_modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if 'gs' in str(k):
-                    m.weight.data.normal_(0, 0.001)
+                # if 'gs' in str(k):
+                #     m.weight.data.normal_(0, 0.001)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -370,6 +370,27 @@ class sarResNet(nn.Module):
         for m in self.modules():
             if isinstance(m, BasicBlock):
                 nn.init.constant_(m.bn2.weight, 0)
+
+        self.mask_param_num = 0
+        self.backbone_param_num = 0
+        for name, params in self.named_parameters():
+            if 'gs' in name:
+                self.mask_param_num += params.numel()
+            else:
+                self.backbone_param_num += params.numel()
+
+        # assert(0==1)
+
+
+    def get_mask_params(self):
+        for name, params in self.named_parameters():
+            if 'gs' in name:
+                yield params
+
+    def get_backbone_params(self):
+        for name, params in self.named_parameters():
+            if 'gs' not in name:
+                yield params
 
     def _make_layer(self, block, inplanes, planes, blocks, stride=1):
         downsample = []
@@ -455,9 +476,13 @@ def sar_resnet_alpha_cifar(depth, num_classes=100, patch_groups=2, mask_size=4, 
 def sar_resnet32x2_alphaBase_cifar(args):
     return sar_resnet_alpha_cifar(depth=32, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, width=2, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
 
+
 if __name__ == "__main__":
     import argparse
     from op_counter import measure_model
+    import numpy as np
+    def params_count(model):
+        return np.sum([p.numel() for p in model.parameters()]).item()
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 10
@@ -466,15 +491,21 @@ if __name__ == "__main__":
     args.alpha = 1
     args.beta = 2
     args.base_scale = 4
-    with torch.no_grad():
-        sar_res = sar_resnet32x2_alphaBase_cifar(args)
-        print(sar_res)
-        sar_res.eval()
-        x = torch.randn(1,3,32,32)
-        y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-        print(len(_masks))
-        print(_masks[0])
-        # print(_masks[9].shape)
-        print(flops / 1e8)
-        # y1 = sar_res(x,inference=True)
-        # print((y-y1).abs().sum())
+    # with torch.no_grad():
+    sar_res = sar_resnet32x2_alphaBase_cifar(args)
+    p1 = sar_res.get_backbone_params()
+    p2 = sar_res.get_mask_params()
+    print(params_count(sar_res)/1e6)
+    print(sar_res.backbone_param_num / 1e6)
+    print(sar_res.mask_param_num / 1e6)
+
+    n1 = 0
+    try:
+        while True:
+            
+            n1 += next(p1).numel()
+    except StopIteration: 
+        pass
+    print(n1/1e6)
+        
+        
