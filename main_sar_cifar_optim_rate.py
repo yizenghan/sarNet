@@ -35,7 +35,7 @@ parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
 parser.add_argument('--data_url', type=str, metavar='DIR', default='/home/hanyz/data/',
                     help='path to dataset')
-parser.add_argument('--train_url', type=str, metavar='PATH', default='/data/hanyz/code/sarNet/log/',
+parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/',
                     help='path to save result and checkpoint (default: results/savedir)')
 parser.add_argument('--dataset', metavar='DATASET', default='cifar10', choices=['cifar10', 'cifar100', 'imagenet'],
                     help='dataset')
