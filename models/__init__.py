@@ -33,3 +33,5 @@ from .sar_resnet_freFuse import *
 
 from .sar_resnet_cifar3stage_alphaBase import *
 from .sar_resnet_cifar4stage_alphaBase import *
+
+from .sar_resnet_imgnet4stage_alphaBase import *
