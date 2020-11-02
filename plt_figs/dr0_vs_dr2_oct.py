@@ -44,15 +44,15 @@ def plot(x, y, label=None, accumulated=False, linestyle='-', linewidth=2, isErro
                 
 
 
-flops = [0.59,0.64,0.73, 0.84]
+flops = [0.59,0.64,0.74, 0.84]
 flops = [a*1 for a in flops]
-acc = [94.31, 94.48, 94.65, 95.31]
-obj = plot(flops, acc, label="T1, add loss at 150", isError = True, marker='D', linestyle='-', linewidth=1, color='#00ccff')
+acc = [94.31, 94.48, 94.67, 95.30]
+obj = plot(flops, acc, label="T1, 300 eps, add loss at 150", isError = True, marker='D', linestyle='-', linewidth=1, color='#00ccff')
 
-flops = [0.605, 0.674, 0.7413]
+flops = [0.605, 0.674, 0.7413, 0.84]
 flops = [a*1 for a in flops]
-acc = [94.36,95.08, 95.20]
-obj = plot(flops, acc, label="T1, ep300, dr=2, 90to150", isError = True, marker='D', linestyle='-', linewidth=1, color='#A0522D')
+acc = [94.36,95.08, 95.20, 95.30]
+obj = plot(flops, acc, label="T1, 300 eps, dr=2, 90to150", isError = True, marker='D', linestyle='-', linewidth=1, color='#A0522D')
 
 
 ax.spines['left'].set_color('k')
@@ -68,10 +68,10 @@ ax.tick_params(axis='y', length=4, labelsize=12)
 
 
 plt.grid(color='#000000', alpha=0.1, linestyle='-', linewidth=0.5)
-plt.ylim(5, 6)
+plt.ylim(4.5, 6)
 plt.xlim(0.55, 0.85)
 # plt.grid()
-ax.yaxis.set_ticks(np.arange(5, 6, 0.2))
+ax.yaxis.set_ticks(np.arange(4.5, 6, 0.2))
 ax.xaxis.set_ticks(np.arange(0.55, 0.85, 0.05))
 # ax.set_xscale("log", nonposx='clip')
 
