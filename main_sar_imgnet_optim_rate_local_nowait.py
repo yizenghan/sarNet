@@ -41,7 +41,7 @@ from queue_jump import check_gpu_memory
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
 parser.add_argument('--data_url', type=str, metavar='DIR', default='/home/data/ImageNet/', help='path to dataset')
-parser.add_argument('--train_url', type=str, metavar='PATH', default='./data/hanyz/code/sarNet/log/',
+parser.add_argument('--train_url', type=str, metavar='PATH', default='/data/hanyz/code/sarNet/log/',
                     help='path to save result and checkpoint (default: results/savedir)')
 parser.add_argument('--dataset', metavar='DATASET', default='imagenet', choices=['cifar10', 'cifar100', 'imagenet'],
                     help='dataset')
@@ -160,6 +160,7 @@ lr_log = []
 epoch_log = []
 val_act_rate = []
 val_FLOPs = []
+args.temp = args.t0
 
 def main():
     # check_gpu_memory()
@@ -356,6 +357,7 @@ def main_worker(gpu, ngpus_per_node, args):
             lr_log = checkpoint['lr_log']
             val_act_rate = checkpoint['val_act_rate']
             val_FLOPs = checkpoint['val_FLOPs']
+            args.temp = checkpoint['temp']
             try:
                 epoch_log = checkpoint['epoch_log']
             except:
@@ -401,7 +403,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     epoch_time = AverageMeter('Epoch Tiem', ':6.3f')
     start_time = time.time()
-    
+    # args.temp = args.t0
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
@@ -466,6 +468,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     'valid_loss': valid_loss,
                     'lr_log': lr_log,
                     'epoch_log': epoch_log,
+                    'temp': args.temp,
                 }, args, is_best, filename='checkpoint.pth.tar')
 
         epoch_time.update(time.time() - start_time, 1)
