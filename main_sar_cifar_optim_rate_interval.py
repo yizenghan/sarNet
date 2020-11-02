@@ -35,7 +35,7 @@ parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
 parser.add_argument('--data_url', type=str, metavar='DIR', default='/home/hanyz/data/',
                     help='path to dataset')
-parser.add_argument('--train_url', type=str, metavar='PATH', default='/data/hanyz/code/sarNet/log/',
+parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/',
                     help='path to save result and checkpoint (default: results/savedir)')
 parser.add_argument('--dataset', metavar='DATASET', default='cifar10', choices=['cifar10', 'cifar100', 'imagenet'],
                     help='dataset')
@@ -108,8 +108,10 @@ parser.add_argument('--dynamic_rate', default=0, type=int)
 
 parser.add_argument('--t_last_epoch', default=160, type=int)
 
-parser.add_argument('--ta_begin_epoch', default=80, type=int)
+parser.add_argument('--ta_begin_epoch', default=0, type=int)
 parser.add_argument('--ta_last_epoch', default=120, type=int)
+
+parser.add_argument('--mask_opt_interval', default=5, type=int)
 
 args = parser.parse_args()
 
@@ -127,7 +129,8 @@ tr_acc_top1 = []
 tr_acc_top5 = []
 train_loss = []
 valid_loss = []
-lr_log = []
+lr_backbone_log = []
+lr_mask_log = []
 epoch_log = []
 
 
@@ -146,14 +149,13 @@ def main():
             str_lambda = str(args.lambda_act).replace('.', '_')
             str_ta = str(args.target_rate).replace('.', '_')
             str_t_last = str(args.t_last).replace('.', '_')
-            save_path = f'{args.train_url}{args.dataset}/{args.arch_config}/_round{args.round}_optimRate_g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/'
+            save_path = f'{args.train_url}{args.dataset}/{args.arch_config}/Epochs{args.epochs}_interval{args.mask_opt_interval}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/_optimRate_g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}/'
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
             args.train_url = save_path
             print(args.train_url)
             # assert(0==1)
     
-
     args.IMAGE_SIZE = 32
 
     main_worker(args)
@@ -168,7 +170,8 @@ def main_worker(args):
     global tr_acc_top5
     global train_loss
     global valid_loss
-    global lr_log
+    global lr_backbone_log
+    global lr_mask_log
     global epoch_log
     global val_act_rate
     global val_FLOPs
@@ -215,11 +218,15 @@ def main_worker(args):
     ### Define loss function (criterion) and optimizer
     criterion = get_criterion(args).cuda()
 
-    # optimizer_backbone = torch.optim.SGD(model.get_backbone_params(), args.lr,
-    #                                momentum=args.momentum,
-    #                                weight_decay=args.weight_decay,
-    #                                nesterov=args.nesterov)
-    optimizer = get_optimizer(args, model)
+    optimizer_backbone = torch.optim.SGD(model.get_backbone_params(), args.lr,
+                                   momentum=args.momentum,
+                                   weight_decay=args.weight_decay,
+                                   nesterov=args.nesterov)
+    optimizer_mask = torch.optim.SGD(model.get_mask_params(), args.lr * args.lrfact,
+                                   momentum=args.momentum,
+                                   weight_decay=args.weight_decay,
+                                   nesterov=args.nesterov)
+    # optimizer = get_optimizer(args, model)
     scheduler = get_scheduler(args)
 
     model = torch.nn.DataParallel(model, device_ids=[0]).cuda()
@@ -235,7 +242,8 @@ def main_worker(args):
             best_acc1_corresponding_acc5 = ['best_acc1_corresponding_acc5']
             model.load_state_dict(checkpoint['state_dict'])
             if not args.evaluate:
-                optimizer.load_state_dict(checkpoint['optimizer'])
+                optimizer_backbone.load_state_dict(checkpoint['optimizer_backbone'])
+                optimizer_mask.load_state_dict(checkpoint['optimizer_mask'])
             val_acc_top1 = checkpoint['val_acc_top1']
             val_acc_top5 = checkpoint['val_acc_top5']
             val_act_rate = checkpoint['val_act_rate']
@@ -244,7 +252,8 @@ def main_worker(args):
             tr_acc_top5 = checkpoint['tr_acc_top5']
             train_loss = checkpoint['train_loss']
             valid_loss = checkpoint['valid_loss']
-            lr_log = checkpoint['lr_log']
+            lr_backbone_log = checkpoint['lr_backbone_log']
+            lr_mask_log = checkpoint['lr_mask_log']
             try:
                 epoch_log = checkpoint['epoch_log']
             except:
@@ -307,11 +316,16 @@ def main_worker(args):
     rate_avg = []
     flops_avg = []
     for epoch in range(args.start_epoch, args.epochs):
+        print(f'Epoch {epoch}')
+        if args.ta_begin_epoch < epoch < args.ta_last_epoch and epoch % args.mask_opt_interval == 0:
+            print('Optimizing mask')
+        else:
+            print('Optimizing backbone')
         ### Train for one epoch
         target_rate = adjust_target_rate(epoch, args)
         print(f'Target rate: {target_rate}')
-        tr_acc1, tr_acc5, tr_loss, lr = \
-            train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
+        tr_acc1, tr_acc5, tr_loss, lr_backbone, lr_mask = \
+            train(train_loader, model, criterion, optimizer_backbone, optimizer_mask, scheduler, epoch, args, target_rate)
         # tr_acc1, tr_acc5, tr_loss, lr = 0,0,0,0
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
@@ -331,10 +345,12 @@ def main_worker(args):
             tr_acc_top5.append(tr_acc5)
             train_loss.append(tr_loss)
             valid_loss.append(val_loss)
-            lr_log.append(lr)
+            lr_backbone_log.append(lr_backbone)
+            lr_mask_log.append(lr_mask)
             epoch_log.append(epoch)
             print('val_act_rate',len(val_act_rate))
-            print('lr_log',len(lr_log))
+            print('lr_backbone_log',len(lr_backbone_log))
+            print('lr_mask_log',len(lr_mask_log))
             print('epoch_log',len(epoch_log))
 
             if epoch >= args.epochs - 5:
@@ -346,7 +362,8 @@ def main_worker(args):
                                 'val_act_rate': val_act_rate, 'val_FLOPs': val_FLOPs, 
                                 'tr_acc_top1': tr_acc_top1, 'tr_acc_top5': tr_acc_top5, 
                                 'train_loss': train_loss, 'valid_loss': valid_loss,
-                               'lr_log': lr_log, 'epoch_log': epoch_log})
+                                'lr_backbone_log': lr_backbone_log, 'lr_mask_log': lr_mask_log,
+                                'epoch_log': epoch_log})
             log_file = args.train_url + 'log.txt'
             if args.train_on_cloud:
                 with mox.file.File(log_file, "w") as f:
@@ -361,7 +378,8 @@ def main_worker(args):
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
                 'best_acc1_corresponding_acc5': best_acc1_corresponding_acc5,
-                'optimizer': optimizer.state_dict(),
+                'optimizer_backbone': optimizer_backbone.state_dict(),
+                'optimizer_mask': optimizer_mask.state_dict(),
                 'val_acc_top1': val_acc_top1,
                 'val_acc_top5': val_acc_top5,
                 'val_act_rate': val_act_rate,
@@ -370,7 +388,7 @@ def main_worker(args):
                 'tr_acc_top5': tr_acc_top5,
                 'train_loss': train_loss,
                 'valid_loss': valid_loss,
-                'lr_log': lr_log,
+                'lr_backbone_log': lr_backbone_log,
                 'epoch_log': epoch_log,
             }, args, is_best, filename='checkpoint.pth.tar')
 
@@ -386,7 +404,7 @@ def main_worker(args):
     return
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate):
+def train(train_loader, model, criterion, optimizer_backbone, optimizer_mask, scheduler, epoch, args, target_rate):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses_cls = AverageMeter('Loss_cls', ':.4e')
@@ -405,10 +423,12 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
     model.train()
 
     end = time.time()
+    
     for i, (input, target) in enumerate(train_loader):
 
         ### Adjust learning rate
-        lr = scheduler.step(optimizer, epoch, batch=i, nBatch=len(train_loader))
+        lr_backbone = scheduler.step(optimizer_backbone, epoch, batch=i, nBatch=len(train_loader))
+        lr_mask = scheduler.step(optimizer_mask, epoch, batch=i, nBatch=len(train_loader))
 
         ### Measure data loading time
         data_time.update(time.time() - end)
@@ -435,6 +455,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         else:
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
         
+        
         act_rate = 0.0
         loss_act_rate = 0.0
         # print(len(_masks))
@@ -446,10 +467,11 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         loss_act_rate = torch.mean(loss_act_rate/len(_masks))
         loss_act_rate = args.lambda_act * loss_act_rate
         # print(loss_cls, loss_act_rate)
-        if args.dynamic_rate > 0:
-            loss = loss_cls + loss_act_rate
-        else:
-            loss = loss_cls + loss_act_rate if epoch >= args.ta_begin_epoch else loss_cls
+        loss = loss_cls + loss_act_rate
+        # if args.dynamic_rate > 0:
+        #     loss = loss_cls + loss_act_rate
+        # else:
+        #     loss = loss_cls + loss_act_rate if epoch >= args.ta_begin_epoch else loss_cls
         
         act_rates.update(act_rate.item(), input.size(0))
         losses_act.update(loss_act_rate.item(),input.size(0))
@@ -458,20 +480,23 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         top1.update(acc1.item(), input.size(0))
         top5.update(acc5.item(), input.size(0))
 
-        ### Compute gradient and do SGD step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        ### Measure elapsed time
+        if args.ta_begin_epoch < epoch < args.ta_last_epoch and epoch % args.mask_opt_interval == 0:
+            optimizer_mask.zero_grad()
+            loss.backward()
+            optimizer_mask.step()
+        else:
+            optimizer_backbone.zero_grad()
+            loss_cls.backward()
+            optimizer_backbone.step()
         batch_time.update(time.time() - end)
         end = time.time()
 
         if i % args.print_freq == 0:
             train_progress.display(i)
-            print('LR: %6.4f' % (lr))
+            print('LR backbone: %6.4f' % (lr_backbone))
+            print('LR mask: %6.4f' % (lr_mask))
 
-    return top1.avg, top5.avg, losses.avg, lr
+    return top1.avg, top5.avg, losses.avg, lr_backbone, lr_mask
 
 def validate(val_loader, model, criterion, args, target_rate):
     batch_time = AverageMeter('Time', ':6.3f')
