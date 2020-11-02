@@ -18,7 +18,7 @@ def check_gpu_memory():
                 meminfo = pynvml.nvmlDeviceGetMemoryInfo(handle)
                 mem_free = meminfo.free/1024**2
                 print('Free memory on GPU device{} is {}M'.format(i, mem_free))
-                if mem_free > 8e3:
+                if mem_free > 7e3:
                     num_free += 1
         if num_free == len(gpulist):
             break

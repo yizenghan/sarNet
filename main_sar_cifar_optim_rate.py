@@ -132,7 +132,7 @@ epoch_log = []
 
 
 def main():
-    check_gpu_memory()
+    # check_gpu_memory()
     if args.dataset == 'cifar10':
         args.num_classes = 10
     else:
