@@ -2,10 +2,191 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from gumbel_softmax import GumbleSoftmax
+from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
+class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, last_relu=True, patch_groups=1, base_scale=2, is_first=False):
+        super(BasicBlock, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
+                               padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1,
+                               padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.downsample = downsample
+        self.have_pool = False
+        self.have_1x1conv2d = False
+
+        self.first_downsample = nn.AvgPool2d(3, stride=2, padding=1) if (base_scale == 4 and is_first) else None
+
+        if self.downsample is not None:
+            self.have_pool = True
+            if len(self.downsample) > 1:
+                self.have_1x1conv2d = True
+
+        self.stride = stride
+        self.last_relu = last_relu
+
+    def forward(self, x):
+        if self.first_downsample is not None:
+            x = self.first_downsample(x)
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        if self.last_relu:
+            out = self.relu(out)
+        return out
+
+    def forward_calc_flops(self, x):
+        flops = 0
+        if self.first_downsample is not None:
+            x = self.first_downsample(x)
+            _, c, h, w = x.shape
+            flops += 9 * c * h * w
+        residual = x
+        c_in = x.shape[1]
+        out = self.conv1(x)
+        _, c_out, h, w = out.shape
+        flops += c_in * c_out * h * w * 9 
+
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        c_in = c_out
+        out = self.conv2(out)
+        _, c_out, h, w = out.shape
+        flops += c_in * c_out * h * w * 9 
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            c_in = x.shape[1]
+            residual = self.downsample(x)
+            _, c, h, w = residual.shape
+            if self.have_pool:
+                flops += 9 * c_in * h * w
+            if self.have_1x1conv2d:
+                flops += c_in * c * h * w
+
+        out += residual
+        if self.last_relu:
+            out = self.relu(out)
+        return out, flops
+
+
+class BasicBlock_refine(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, last_relu=True, patch_groups=1, base_scale=2, is_first=True):
+        super(BasicBlock_refine, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
+                               padding=1, bias=False, groups=patch_groups)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
+                               padding=1, bias=False, groups=patch_groups)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.downsample = downsample
+
+        self.stride = stride
+        self.last_relu = last_relu
+        self.patch_groups = patch_groups
+        # print(patch_groups)
+
+    def forward(self, x, mask, inference=False):
+        residual = x
+        if self.downsample is not None:     # skip connection before mask
+            residual = self.downsample(x)
+
+        b,c,h,w = x.shape
+        g = mask.shape[1]
+        m_h = mask.shape[2]
+        mask1 = mask.clone()
+        if g > 1:
+            mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
+            
+        mask1 = F.interpolate(mask1, size = (h,w))
+        # print(mask1.shape, x.shape)
+        out = x * mask1
+        # print(mask1)
+        out = self.conv1(out)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        c_out = out.shape[1]
+        # print(mask1.shape, mask.shape)
+        mask2 = mask.clone()
+        if g > 1:
+            mask2 = mask2.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
+        mask2 = F.interpolate(mask2, size = (h,w))
+        # print(mask2.shape, out.shape)
+        out = out * mask2
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out += residual
+        if self.last_relu:
+            out = self.relu(out)
+        return out
+        
+
+    def forward_calc_flops(self, x, mask, inference=False):
+        # print('refine bottleneck, input shape: ', x.shape)
+        residual = x
+        flops = 0
+        
+        if self.downsample is not None:     # skip connection before mask
+            c_in = x.shape[1]
+            residual = self.downsample(x)
+            flops += c_in * residual.shape[1] * residual.shape[2] * residual.shape[3]
+
+        b,c,h,w = x.shape
+        g = mask.shape[1]
+        m_h = mask.shape[2]
+        ratio = mask.sum() / mask.numel()
+        # ratio = 0.5
+        # print(ratio)
+        mask1 = mask.clone()
+        if g > 1:
+            mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
+
+        mask1 = F.interpolate(mask1, size = (h,w))
+        # print(mask1.shape, x.shape)
+        out = x * mask1
+        c_in = out.shape[1]
+        out = self.conv1(out)
+        flops += ratio * c_in * out.shape[1] * out.shape[2] * out.shape[3] * 9 / self.conv1.groups
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        c_out = out.shape[1]
+        # print(mask1.shape, mask.shape)
+        mask2 = mask.clone()
+        if g > 1:
+            mask2 = mask2.unsqueeze(1).repeat(1,c_out//g,1,1,1).transpose(1,2).reshape(b,c_out,m_h,m_h)
+        mask2 = F.interpolate(mask2, size = (h,w))
+        out = out * mask2
+        c_in = out.shape[1]
+        out = self.conv2(out)
+        flops += ratio * c_in * out.shape[1] * out.shape[2] * out.shape[3] * 9 / self.conv2.groups
+        out = self.bn2(out)
+
+        out += residual
+        if self.last_relu:
+            out = self.relu(out)
+        return out, flops
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -503,16 +684,22 @@ class sarResNet(nn.Module):
 
         return x, _masks, flops
 
-def sar_resnet_imgnet_alphaBase(depth, num_classes=1000, patch_groups=1, mask_size=4, width=1.0, alpha=1, beta=1, base_scale=2):
+def sar_resnet_imgnet_alphaBase(depth, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1, beta=1, base_scale=2):
     layers = {
+        34: [3, 4, 6, 3],
         50: [3, 4, 6, 3],
         101: [4, 8, 18, 3],
         152: [5, 12, 30, 3]
     }[depth]
-    model = sarResNet(block_base=Bottleneck, block_refine=Bottleneck_refine, layers=layers, 
+    block = BasicBlock if depth == 34 else Bottleneck
+    block_refine = BasicBlock_refine if depth == 34 else Bottleneck_refine
+    model = sarResNet(block_base=block, block_refine=block_refine, layers=layers, 
                       num_classes=num_classes, patch_groups=patch_groups, mask_size=mask_size, width=width, 
                       alpha=alpha, beta=beta, base_scale=base_scale)
     return model
+
+def sar_resnet34_alphaBase_4stage_imgnet(args):
+    return sar_resnet_imgnet_alphaBase(depth=34, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
 
 def sar_resnet50_alphaBase_4stage_imgnet(args):
     return sar_resnet_imgnet_alphaBase(depth=50, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
@@ -524,12 +711,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
+    args.depth=34
     args.patch_groups = 2
     args.mask_size = 7
     args.alpha = 2
     args.beta = 1
     args.base_scale = 2
-    sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
+    sar_res = sar_resnet34_alphaBase_4stage_imgnet(args)
+    # print(sar_res)
+
     with torch.no_grad():
         
         print(sar_res)
