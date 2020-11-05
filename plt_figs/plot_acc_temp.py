@@ -7,39 +7,39 @@ epochs = np.array([e for e in range(300)])
 
 
 fig = plt.figure()
-path1_1 = '/data/hanyz/code/sarNet/log/zyt/cifar100/sar_resnet50_alphaBase_4stage_cifar/_round1_optimRate_g2_a2b1_s2/t0_1_0_tLast0_01_tempScheduler_exp_target0_7_optimizeFromEpoch90to150_dr2_lambda_1_0/log.txt'
+path1_1 = '/data/hanyz/code/sarNet/plt_figs/log_dr2_0.6.txt'
 res1_1 = pd.read_csv(path1_1)
-acc1_1 = np.array(res1_1['train_loss'])[:-1]
-rate1_1 = np.array(res1_1['lr_log'])
+acc1_1 = np.array(res1_1['val_acc_top1'])[:-1]
+rate1_1 = np.array(res1_1['val_act_rate'])
 rate1_1 = rate1_1[:-1]
 # rate1_1 = [r.replace('tensor(','') for r in rate1_1]
 # rate1_1 = [r.replace(", device='cuda:0')",'') for r in rate1_1]
 # rate1_1 = [float(r) for r in rate1_1]
 # rate1_1 = np.array(rate1_1)
 
-path1_2 = '/data/hanyz/code/sarNet/log/zyt/cifar100/sar_resnet50_alphaBase_4stage_cifar/_round1_optimRate_g2_a2b1_s2/t0_1_0_tLast0_01_tempScheduler_exp_target0_4_optimizeFromEpoch90to150_dr2_lambda_1_0/log.txt'
+path1_2 = '/data/hanyz/code/sarNet/plt_figs/log_dr3_0.6.txt'
 res1_2 = pd.read_csv(path1_2)
-acc1_2 = np.array(res1_2['train_loss'])[:-1]
-rate1_2 = np.array(res1_2['lr_log'])[:-1]
+acc1_2 = np.array(res1_2['val_acc_top1'])[:-1]
+rate1_2 = np.array(res1_2['val_act_rate'])[:-1]
 # rate1_2 = [r.replace('tensor(','') for r in rate1_2]
 # rate1_2 = [r.replace(", device='cuda:0')",'') for r in rate1_2]
 # rate1_2 = [float(r) for r in rate1_2]
 # rate1_2 = np.array(rate1_2)
 
 
-plt.plot(epochs, rate1_1, c = '#ff3300', label='lr, t0=1.0, target=0.7')
-plt.plot(epochs, rate1_2, c = '#ff99cc', label='lr, t0=1.0, target=0.4')
+plt.plot(epochs, rate1_1, c = '#ff3300', label='act_rate, t0=1.0, target=0.6, lambda=step')
+plt.plot(epochs, rate1_2, c = '#ff99cc', label='act_rate, t0=1.0, target=0.6, lambda=linear')
 xlabel(r'$epoch$')
-ylabel(r'$lr$')
+ylabel(r'$act_rate$')
 plt.legend(loc=2)
 
 twinx()
 
-plt.plot(epochs, acc1_1, c = '#0066ff', label='train_loss, t0=1.0, target=0.7')
-plt.plot(epochs, acc1_2, c = '#33ccff', label='train_loss, t0=1.0, target=0.4')
-ylabel(r'$train_loss$')
+plt.plot(epochs, acc1_1, c = '#0066ff', label='acc1, t0=1.0, target=0.6, lambda=step')
+plt.plot(epochs, acc1_2, c = '#33ccff', label='acc1, t0=1.0, target=0.6, lambda=linear')
+ylabel(r'$acc1$')
 plt.legend(loc=3)
-plt.savefig('cifar100_loss_lr.png')
+plt.savefig('cifar10_lambda_0.6.png')
 
 
 # -----------------------------------------------------------------------------------------

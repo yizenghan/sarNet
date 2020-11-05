@@ -691,7 +691,7 @@ def adjust_target_rate(epoch, args):
             target_rate = 1.0
         else:
             target_rate = args.target_rate
-    else:
+    elif args.dynamic_rate == 2:
         if epoch < args.ta_begin_epoch :
             target_rate = 1.0
         elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
@@ -700,7 +700,15 @@ def adjust_target_rate(epoch, args):
             target_rate = args.target_rate + (1.0 - args.target_rate)/3
         else:
             target_rate = args.target_rate
+    elif args.dynamic_rate == 3:
+        if epoch < args.ta_begin_epoch :
+            target_rate = 1.0
+        elif epoch < args.ta_last_epoch:
+            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch))) + args.target_rate
+        else:
+            target_rate = args.target_rate
     return target_rate
+
 
 if __name__ == '__main__':
     main()
