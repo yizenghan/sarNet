@@ -163,7 +163,7 @@ val_FLOPs = []
 args.temp = args.t0
 
 def main():
-    check_gpu_memory()
+    # check_gpu_memory()
     str_t0 = str(args.t0).replace('.', '_')
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')
@@ -691,13 +691,20 @@ def adjust_target_rate(epoch, args):
             target_rate = 1.0
         else:
             target_rate = args.target_rate
-    else:
+    elif args.dynamic_rate == 2:
         if epoch < args.ta_begin_epoch :
             target_rate = 1.0
         elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3*2
         elif epoch < args.ta_last_epoch:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3
+        else:
+            target_rate = args.target_rate
+    elif args.dynamic_rate == 3:
+        if epoch < args.ta_begin_epoch :
+            target_rate = 1.0
+        elif epoch < args.ta_last_epoch:
+            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch))) + args.target_rate
         else:
             target_rate = args.target_rate
     return target_rate
