@@ -711,13 +711,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
-    args.depth=34
-    args.patch_groups = 2
+    args.patch_groups = 4
     args.mask_size = 7
     args.alpha = 2
     args.beta = 1
     args.base_scale = 2
-    sar_res = sar_resnet34_alphaBase_4stage_imgnet(args)
+    sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
     # print(sar_res)
 
     with torch.no_grad():
