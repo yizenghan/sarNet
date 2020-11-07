@@ -156,7 +156,7 @@ class BasicBlock_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.9
+        # ratio = 0.5
         # print(ratio)
         mask1 = mask.clone()
         if g > 1:
@@ -362,7 +362,7 @@ class Bottleneck_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        ratio = 0.75
+        ratio = 0.5
         print(ratio)
         mask1 = mask.clone()
         if g > 1:
@@ -764,11 +764,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.num_classes = 1000
     args.depth=50
-    args.patch_groups = 4
+    args.patch_groups = 2
     args.mask_size = 7
     args.alpha = 4
     args.beta = 1
-    args.base_scale = 2
+    args.base_scale = 4
     sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
     # print(sar_res)
 
