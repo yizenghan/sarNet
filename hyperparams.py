@@ -429,7 +429,7 @@ def get_hyperparams(args, test_code=0):
             args.change_light = True
             ### optimizer
             args.optimizer = 'SGD'
-            args.lr = 0.01 * args.batch_size / 256
+            args.lr = 0.1 * args.batch_size / 256
             args.momentum = 0.9
             args.weigh_decay_apply_on_all = True  # TODO: weight decay apply on which params
             args.weight_decay = 1e-4
