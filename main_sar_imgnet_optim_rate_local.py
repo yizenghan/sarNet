@@ -163,7 +163,7 @@ val_FLOPs = []
 args.temp = args.t0
 
 def main():
-    check_gpu_memory()
+    # check_gpu_memory()
     str_t0 = str(args.t0).replace('.', '_')
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')
@@ -231,7 +231,7 @@ def main_worker(gpu, ngpus_per_node, args):
     print(args.cfg)
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
-    print('Hyper-parameters:', str(args))
+    # print('Hyper-parameters:', str(args))
 
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
@@ -259,7 +259,7 @@ def main_worker(gpu, ngpus_per_node, args):
     model_type = args.arch_config
     model = eval(f'models.{args.arch}.{args.arch_config}')(args)
 
-    print('Model Struture:', str(model))
+    # print('Model Struture:', str(model))
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
             f.write(str(model))
@@ -691,13 +691,20 @@ def adjust_target_rate(epoch, args):
             target_rate = 1.0
         else:
             target_rate = args.target_rate
-    else:
+    elif args.dynamic_rate == 2:
         if epoch < args.ta_begin_epoch :
             target_rate = 1.0
         elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3*2
         elif epoch < args.ta_last_epoch:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3
+        else:
+            target_rate = args.target_rate
+    elif args.dynamic_rate == 3:
+        if epoch < args.ta_begin_epoch :
+            target_rate = 1.0
+        elif epoch < args.ta_last_epoch:
+            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch)) + args.target_rate
         else:
             target_rate = args.target_rate
     return target_rate
