@@ -47,7 +47,7 @@ parser.add_argument('--dataset', metavar='DATASET', default='imagenet', choices=
                     help='dataset')
 parser.add_argument('-j', '--workers', default=64, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
+parser.add_argument('--epochs', default=110, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -131,7 +131,7 @@ parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
 
 args = parser.parse_args()
-args.t_last_epoch = args.epochs
+# args.t_last_epoch = args.epochs
 args.train_on_cloud = False
 # args.dynamic_rate = True if args.dynamic_rate > 0 else False
 if args.use_amp > 0:
@@ -704,7 +704,7 @@ def adjust_target_rate(epoch, args):
         if epoch < args.ta_begin_epoch :
             target_rate = 1.0
         elif epoch < args.ta_last_epoch:
-            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch))) + args.target_rate
+            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch)) + args.target_rate
         else:
             target_rate = args.target_rate
     return target_rate
