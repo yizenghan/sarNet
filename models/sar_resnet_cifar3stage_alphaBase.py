@@ -280,7 +280,7 @@ class sarModule(nn.Module):
             layers.append(block(inplanes, planes, stride=stride, downsample=downsample,
                                 patch_groups=self.patch_groups, base_scale=base_scale, is_first = False))
         else:
-            layers.append(block(inplanes, planes, stride, downsample,patch_groups=self.patch_groups))
+            layers.append(block(inplanes, planes, stride, downsample,patch_groups=self.patch_groups, is_first = True))
             for i in range(1, blocks):
                 layers.append(block(planes, planes,
                                     last_relu=last_relu if i == blocks - 1 else True,
