@@ -47,7 +47,7 @@ parser.add_argument('--dataset', metavar='DATASET', default='imagenet', choices=
                     help='dataset')
 parser.add_argument('-j', '--workers', default=64, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=110, type=int, metavar='N',
+parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -131,7 +131,7 @@ parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
 
 args = parser.parse_args()
-# args.t_last_epoch = args.epochs
+args.t_last_epoch = args.epochs
 args.train_on_cloud = False
 # args.dynamic_rate = True if args.dynamic_rate > 0 else False
 if args.use_amp > 0:
@@ -163,7 +163,7 @@ val_FLOPs = []
 args.temp = args.t0
 
 def main():
-    # check_gpu_memory()
+    check_gpu_memory()
     str_t0 = str(args.t0).replace('.', '_')
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')
@@ -231,7 +231,7 @@ def main_worker(gpu, ngpus_per_node, args):
     print(args.cfg)
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
-    # print('Hyper-parameters:', str(args))
+    print('Hyper-parameters:', str(args))
 
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
@@ -259,7 +259,7 @@ def main_worker(gpu, ngpus_per_node, args):
     model_type = args.arch_config
     model = eval(f'models.{args.arch}.{args.arch_config}')(args)
 
-    # print('Model Struture:', str(model))
+    print('Model Struture:', str(model))
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
             f.write(str(model))
@@ -336,9 +336,9 @@ def main_worker(gpu, ngpus_per_node, args):
                 # Map model to be loaded to specified single gpu.
                 loc = 'cuda:{}'.format(args.gpu)
                 checkpoint = torch.load(args.resume, map_location=loc)
-            args.start_epoch = checkpoint['epoch']
-            best_acc1 = checkpoint['best_acc1']
-            best_acc1_corresponding_acc5 = ['best_acc1_corresponding_acc5']
+            # args.start_epoch = checkpoint['epoch']
+            # best_acc1 = checkpoint['best_acc1']
+            # best_acc1_corresponding_acc5 = ['best_acc1_corresponding_acc5']
             if args.gpu is not None:
                 # best_acc1 may be from a checkpoint from a different GPU
                 # best_acc1 = best_acc1.to(args.gpu)
@@ -346,22 +346,22 @@ def main_worker(gpu, ngpus_per_node, args):
                 pass
 
             model.load_state_dict(checkpoint['state_dict'])
-            if not args.evaluate:
-                optimizer.load_state_dict(checkpoint['optimizer'])
-            val_acc_top1 = checkpoint['val_acc_top1']
-            val_acc_top5 = checkpoint['val_acc_top5']
-            tr_acc_top1 = checkpoint['tr_acc_top1']
-            tr_acc_top5 = checkpoint['tr_acc_top5']
-            train_loss = checkpoint['train_loss']
-            valid_loss = checkpoint['valid_loss']
-            lr_log = checkpoint['lr_log']
-            val_act_rate = checkpoint['val_act_rate']
-            val_FLOPs = checkpoint['val_FLOPs']
-            args.temp = checkpoint['temp']
-            try:
-                epoch_log = checkpoint['epoch_log']
-            except:
-                print('There is no epoch_log in checkpoint!')
+            # if not args.evaluate:
+            #     optimizer.load_state_dict(checkpoint['optimizer'])
+            # val_acc_top1 = checkpoint['val_acc_top1']
+            # val_acc_top5 = checkpoint['val_acc_top5']
+            # tr_acc_top1 = checkpoint['tr_acc_top1']
+            # tr_acc_top5 = checkpoint['tr_acc_top5']
+            # train_loss = checkpoint['train_loss']
+            # valid_loss = checkpoint['valid_loss']
+            # lr_log = checkpoint['lr_log']
+            # val_act_rate = checkpoint['val_act_rate']
+            # val_FLOPs = checkpoint['val_FLOPs']
+            # args.temp = checkpoint['temp']
+            # try:
+            #     epoch_log = checkpoint['epoch_log']
+            # except:
+            #     print('There is no epoch_log in checkpoint!')
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
@@ -539,6 +539,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
             loss_act += torch.pow(target_rate-torch.mean(act), 2)
         act_rate = torch.mean(act_rate / len(_masks))
         loss_act = args.lambda_act * torch.mean(loss_act/len(_masks))
+        # print(target_rate, act_rate, loss_act, args.lambda_act)
         if args.dynamic_rate > 0:
             loss = loss_cls + loss_act
         else:
@@ -691,20 +692,13 @@ def adjust_target_rate(epoch, args):
             target_rate = 1.0
         else:
             target_rate = args.target_rate
-    elif args.dynamic_rate == 2:
+    else:
         if epoch < args.ta_begin_epoch :
             target_rate = 1.0
         elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3*2
         elif epoch < args.ta_last_epoch:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3
-        else:
-            target_rate = args.target_rate
-    elif args.dynamic_rate == 3:
-        if epoch < args.ta_begin_epoch :
-            target_rate = 1.0
-        elif epoch < args.ta_last_epoch:
-            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch)) + args.target_rate
         else:
             target_rate = args.target_rate
     return target_rate
