@@ -1,5 +1,5 @@
 import torch.nn as nn
-from octconv import *
+from .octconv import *
 
 
 
@@ -379,18 +379,35 @@ if __name__ == '__main__':
     import argparse
     import numpy as np
     import time
-    import torch
-    import torchvision
-    from torch.utils.mobile_optimizer import optimize_for_mobile
     parser = argparse.ArgumentParser(description='PyTorch resnet Training')
     args = parser.parse_args()
     args.num_classes = 1000
-    net = oct_resnet50()
+    net = oct_resnet50()#.cuda(1)
     net.eval()
-    x = torch.rand(1,3,224,224)
+    x = torch.rand(1,3,224,224)#.cuda(1)
+    # y, _flops = net.forward_calc_flops(x)
+    # print(_flops / 1e9)
+    # example = torch.rand(1, 3, 224, 224)
+    # traced_script_module = torch.jit.trace(model, example)
+    # torchscript_model_optimized = optimize_for_mobile(traced_script_module)
+    # torchscript_model_optimized.save("oct_r50.pt")
+
+    
+    
+
+    t_sim = []
+    for i in range(100):
+        t1 = time.time()
+        y = net(x)
+        if i >= 10:
+            t = time.time() - t1
+            print(t)
+            t_sim.append(t)
+    print('TIME sim: ', np.mean(t_sim))
+    # s = 0
+    # for item in t_sim:
+    #     s+=pow((item-np.mean(t_sim)),2)
+    # sa = s / len(t_sim)
+    print(np.std(t_sim)) 
     y, _flops = net.forward_calc_flops(x)
     print(_flops / 1e9)
-    example = torch.rand(1, 3, 224, 224)
-    traced_script_module = torch.jit.trace(model, example)
-    torchscript_model_optimized = optimize_for_mobile(traced_script_module)
-    torchscript_model_optimized.save("oct_r50.pt")
