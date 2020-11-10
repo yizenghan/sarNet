@@ -394,7 +394,7 @@ def main_worker(gpu, ngpus_per_node, args):
         datasets.ImageFolder(
             valdir,
             get_transform(args, is_train_set=False)),
-        batch_size=args.batch_size * torch.cuda.device_count(), shuffle=False,
+        batch_size=args.batch_size * torch.cuda.device_count()//2, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
