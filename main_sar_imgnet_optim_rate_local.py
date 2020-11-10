@@ -257,6 +257,7 @@ def main_worker(gpu, ngpus_per_node, args):
     ### Create model
     # model = pytorchmodels.resnet50(pretrained=False)
     model_type = args.arch_config
+    print(args.arch, args.arch_config)
     model = eval(f'models.{args.arch}.{args.arch_config}')(args)
 
     # print('Model Struture:', str(model))
