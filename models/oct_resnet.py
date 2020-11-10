@@ -1,5 +1,5 @@
 import torch.nn as nn
-from .octconv import *
+from octconv import *
 
 
 
@@ -377,17 +377,20 @@ def oct_resnet50_cifar(args):
 if __name__ == '__main__':
     from op_counter import measure_model
     import argparse
+    import numpy as np
+    import time
+    import torch
+    import torchvision
+    from torch.utils.mobile_optimizer import optimize_for_mobile
     parser = argparse.ArgumentParser(description='PyTorch resnet Training')
     args = parser.parse_args()
-    args.num_classes = 10
-    net = oct_resnet26_cifar(args)
-    x = torch.rand(1,3,32,32)
-    with torch.no_grad():
-        y = net(x)
-        print(y.shape)
-
-        y, flops = net.forward_calc_flops(x)
-        print(flops / 1e9)
-
-        # cls_ops, cls_params = measure_model(net, 32,32)
-        # print(cls_params[-1]/1e6, cls_ops[-1]/1e8)
+    args.num_classes = 1000
+    net = oct_resnet50()
+    net.eval()
+    x = torch.rand(1,3,224,224)
+    y, _flops = net.forward_calc_flops(x)
+    print(_flops / 1e9)
+    example = torch.rand(1, 3, 224, 224)
+    traced_script_module = torch.jit.trace(model, example)
+    torchscript_model_optimized = optimize_for_mobile(traced_script_module)
+    torchscript_model_optimized.save("oct_r50.pt")

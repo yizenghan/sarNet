@@ -47,7 +47,7 @@ parser.add_argument('--dataset', metavar='DATASET', default='imagenet', choices=
                     help='dataset')
 parser.add_argument('-j', '--workers', default=64, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
+parser.add_argument('--epochs', default=110, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -231,7 +231,7 @@ def main_worker(gpu, ngpus_per_node, args):
     print(args.cfg)
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
-    print('Hyper-parameters:', str(args))
+    # print('Hyper-parameters:', str(args))
 
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
@@ -259,7 +259,7 @@ def main_worker(gpu, ngpus_per_node, args):
     model_type = args.arch_config
     model = eval(f'models.{args.arch}.{args.arch_config}')(args)
 
-    print('Model Struture:', str(model))
+    # print('Model Struture:', str(model))
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
             f.write(str(model))
@@ -540,7 +540,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
             loss_act += torch.pow(target_rate-torch.mean(act), 2)
         act_rate = torch.mean(act_rate / len(_masks))
         loss_act = args.lambda_act * torch.mean(loss_act/len(_masks))
-        if args.dynamic_rate:
+        if args.dynamic_rate > 0:
             loss = loss_cls + loss_act
         else:
             loss = loss_cls + loss_act if epoch >= args.ta_begin_epoch else loss_cls

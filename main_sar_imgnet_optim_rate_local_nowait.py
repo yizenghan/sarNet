@@ -704,7 +704,7 @@ def adjust_target_rate(epoch, args):
         if epoch < args.ta_begin_epoch :
             target_rate = 1.0
         elif epoch < args.ta_last_epoch:
-            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch))) + args.target_rate
+            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch)) + args.target_rate
         else:
             target_rate = args.target_rate
     return target_rate

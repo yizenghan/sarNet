@@ -362,8 +362,7 @@ class Bottleneck_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        ratio = 0.5
-        print(ratio)
+        # ratio = 0.75
         mask1 = mask.clone()
         if g > 1:
             mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
@@ -579,21 +578,7 @@ class sarResNet(nn.Module):
         self.bn1 = nn.BatchNorm2d(num_channels[0])
         self.relu = nn.ReLU(inplace=True)
 
-
-        self.b_conv0 = nn.Conv2d(num_channels[0], num_channels[0], kernel_size=1, stride=2, padding=1, bias=False)
-        self.bn_b0 = nn.BatchNorm2d(num_channels[0])
-
-        self.l_conv0 = nn.Conv2d(num_channels[0], num_channels[0] // alpha,
-                                 kernel_size=1, stride=1, padding=1, bias=False)
-        self.bn_l0 = nn.BatchNorm2d(num_channels[0] // alpha)
-        self.l_conv1 = nn.Conv2d(num_channels[0] // alpha, num_channels[0] //
-                                 alpha, kernel_size=3, stride=2, padding=1, bias=False)
-        self.bn_l1 = nn.BatchNorm2d(num_channels[0] // alpha)
-        self.l_conv2 = nn.Conv2d(num_channels[0] // alpha, num_channels[0], kernel_size=1, stride=1, bias=False)
-        self.bn_l2 = nn.BatchNorm2d(num_channels[0])
-
-
-        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = sarModule(block_base, block_refine, num_channels[0], num_channels[0]*block_base.expansion, 
                                layers[0], stride=2, groups=patch_groups,mask_size=mask_size, alpha=alpha, base_scale=base_scale)
         self.layer2 = sarModule(block_base, block_refine, num_channels[0]*block_base.expansion,
@@ -641,20 +626,7 @@ class sarResNet(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-
-        bx = self.b_conv0(x)
-        bx = self.bn_b0(bx)
-        lx = self.l_conv0(x)
-        lx = self.bn_l0(lx)
-        lx = self.relu(lx)
-        lx = self.l_conv1(lx)
-        lx = self.bn_l1(lx)
-        lx = self.relu(lx)
-        lx = self.l_conv2(lx)
-        lx = self.bn_l2(lx)
-        x = self.relu(bx+lx)
-
-        # x = self.maxpool(x)
+        x = self.maxpool(x)
         # print('before layer 1:', x.shape)
         _masks = []
         x, mask = self.layer1(x, temperature=temperature, inference=inference)
@@ -683,32 +655,8 @@ class sarResNet(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
 
-
-        c_in = x.shape[1]
-        bx = self.b_conv0(x)
-        flops += c_in * bx.shape[1] * bx.shape[2] * bx.shape[3] * self.b_conv0.weight.shape[2]*self.b_conv0.weight.shape[3]
-
-        bx = self.bn_b0(bx)
-        lx = self.l_conv0(x)
-        flops += c_in * lx.shape[1] * lx.shape[2] * lx.shape[3] * self.l_conv0.weight.shape[2]*self.l_conv0.weight.shape[3]
-        lx = self.bn_l0(lx)
-        lx = self.relu(lx)
-
-        c_in = lx.shape[1]
-        lx = self.l_conv1(lx)
-        flops += c_in * lx.shape[1] * lx.shape[2] * lx.shape[3] * self.l_conv1.weight.shape[2]*self.l_conv1.weight.shape[3]
-
-        lx = self.bn_l1(lx)
-        lx = self.relu(lx)
-
-        c_in = lx.shape[1]
-        lx = self.l_conv2(lx)
-        flops += c_in * lx.shape[1] * lx.shape[2] * lx.shape[3] * self.l_conv2.weight.shape[2]*self.l_conv2.weight.shape[3]
-        lx = self.bn_l2(lx)
-        x = self.relu(bx+lx)
-
-        # x = self.maxpool(x)
-        # flops += x.numel() / x.shape[0] * 9
+        x = self.maxpool(x)
+        flops += x.numel() / x.shape[0] * 9
         _masks = []
         # print(x.shape)
         x, mask, _flops = self.layer1.forward_calc_flops(x, temperature=temperature, inference=inference)
@@ -763,12 +711,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
-    args.depth=50
-    args.patch_groups = 2
+    args.patch_groups = 4
     args.mask_size = 7
-    args.alpha = 4
+    args.alpha = 2
     args.beta = 1
-    args.base_scale = 4
+    args.base_scale = 2
     sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
     # print(sar_res)
 
