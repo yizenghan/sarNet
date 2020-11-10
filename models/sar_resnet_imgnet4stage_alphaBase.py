@@ -156,7 +156,7 @@ class BasicBlock_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.5
+        # ratio = 0.7
         # print(ratio)
         mask1 = mask.clone()
         if g > 1:
@@ -362,7 +362,8 @@ class Bottleneck_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.75
+        # ratio = 0.7
+        # print(ratio)
         mask1 = mask.clone()
         if g > 1:
             mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
@@ -597,6 +598,8 @@ class sarResNet(nn.Module):
                 if 'gs' in str(k):
                     m.weight.data.normal_(0, 0.001)
             elif isinstance(m, nn.BatchNorm2d):
+                # if 'gs' in str(k):
+                #     print(k)
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
@@ -711,23 +714,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
-    args.patch_groups = 4
+    args.patch_groups = 2
     args.mask_size = 7
     args.alpha = 2
     args.beta = 1
     args.base_scale = 2
-    sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
+    sar_res = sar_resnet34_alphaBase_4stage_imgnet(args)
     # print(sar_res)
 
-    with torch.no_grad():
+    # with torch.no_grad():
         
-        print(sar_res)
-        x = torch.rand(1,3,224,224)
-        sar_res.eval()
+    #     print(sar_res)
+    #     x = torch.rand(1,3,224,224)
+    #     sar_res.eval()
 
-        y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-        # print(len(_masks))
-        # for i in range(len(_masks)):
-        #     print(_masks[i])
-        print(flops / 1e9)
+    #     y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+    #     # print(len(_masks))
+    #     # for i in range(len(_masks)):
+    #     #     print(_masks[i])
+    #     print(flops / 1e9)
     
