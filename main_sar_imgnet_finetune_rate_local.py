@@ -26,6 +26,7 @@ from config import Config
 
 import math
 import torch
+import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -365,6 +366,17 @@ def main_worker(gpu, ngpus_per_node, args):
                   .format(args.resume, checkpoint['epoch']))
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
+    
+        # for k, m in model.named_modules():
+        #     if isinstance(m, nn.Conv2d):
+        #         nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        #         if 'gs' in str(k):
+        #             m.weight.data.normal_(0, 0.001)
+            # elif isinstance(m, nn.BatchNorm2d):
+            #     if 'gs' in str(k):
+            #         nn.init.constant_(m.weight, 1)
+            #         nn.init.constant_(m.bias, 0)
+        # print('init gs ok')
 
     cudnn.benchmark = True
 

@@ -6,6 +6,36 @@ from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
+class AttentionLayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(AttentionLayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.reduction = reduction
+        self.fc = nn.Sequential(
+            nn.Linear(channel, int(channel // reduction), bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(int(channel // reduction), channel, bias=False),
+            nn.Sigmoid()
+        )
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+
+    def forward(self, x):
+        b, c, h, w = x.size()
+        y = self.avg_pool(x).view(b,c)
+        attention = self.fc(y)
+        return attention.view(b,c,1,1)
+    
+    def forward_calc_flops(self, x):
+        b, c, h, w = x.size()
+        flops = c*h*w
+        # print('jjj')
+        y = self.avg_pool(x).view(b,c)
+        attention = self.fc(y)
+        flops += c*c//self.reduction*2 + c
+        return attention.view(b,c,1,1), flops
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -156,7 +186,7 @@ class BasicBlock_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.7
+        # ratio = 0.5
         # print(ratio)
         mask1 = mask.clone()
         if g > 1:
@@ -362,8 +392,7 @@ class Bottleneck_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.7
-        # print(ratio)
+        # ratio = 0.75
         mask1 = mask.clone()
         if g > 1:
             mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
@@ -491,6 +520,7 @@ class sarModule(nn.Module):
                 nn.Conv2d(int(out_channels*beta), out_channels, kernel_size=1, bias=False),
                 nn.BatchNorm2d(out_channels)
             )
+        self.att_gen = AttentionLayer(channel=out_channels, reduction=16) 
         self.fusion = self._make_layer(block_base, out_channels, out_channels, 1, stride=stride, base_scale=base_scale)
 
     def _make_layer(self, block, inplanes, planes, blocks, stride=1, last_relu=True, base_scale=2):
@@ -534,8 +564,9 @@ class sarModule(nn.Module):
         if self.beta != 1:
             x_refine= self.refine_transform(x_refine)
         _,_,h,w = x_refine.shape
+        att = self.att_gen(x_base)
         x_base = F.interpolate(x_base, size = (h,w))
-        out = self.relu(x_base + x_refine)
+        out = self.relu(att*x_base + (1-att)*x_refine)
         out = self.fusion[0](out)
         return out, _masks
 
@@ -562,8 +593,11 @@ class sarModule(nn.Module):
             c_in = x_refine.shape[1]
             x_refine = self.refine_transform(x_refine)
             flops += c_in * x_refine.shape[1] * x_refine.shape[2] * x_refine.shape[3]
+        
+        att,_flops = self.att_gen.forward_calc_flops(x_base)
+        flops += _flops
         x_base = F.interpolate(x_base, size = (h,w))
-        out = self.relu(x_base + x_refine)
+        out = self.relu(att*x_base + (1-att)*x_refine)
         out, _flops = self.fusion[0].forward_calc_flops(out)
         flops += _flops
         return out, _masks, flops
@@ -595,11 +629,9 @@ class sarResNet(nn.Module):
         for k, m in self.named_modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if 'gs' in str(k):
-                    m.weight.data.normal_(0, 0.001)
-            elif isinstance(m, nn.BatchNorm2d):
                 # if 'gs' in str(k):
-                #     print(k)
+                #     m.weight.data.normal_(0, 0.001)
+            elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
@@ -701,10 +733,10 @@ def sar_resnet_imgnet_alphaBase(depth, num_classes=1000, patch_groups=1, mask_si
                       alpha=alpha, beta=beta, base_scale=base_scale)
     return model
 
-def sar_resnet34_alphaBase_4stage_imgnet(args):
+def sar_resnet34_1attFuse(args):
     return sar_resnet_imgnet_alphaBase(depth=34, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
 
-def sar_resnet50_alphaBase_4stage_imgnet(args):
+def sar_resnet50_1attFuse(args):
     return sar_resnet_imgnet_alphaBase(depth=50, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
 
 
@@ -714,23 +746,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
-    args.patch_groups = 2
+    args.patch_groups = 4
     args.mask_size = 7
     args.alpha = 2
     args.beta = 1
     args.base_scale = 2
-    sar_res = sar_resnet34_alphaBase_4stage_imgnet(args)
+    sar_res = sar_resnet50_1attFuse(args)
     # print(sar_res)
 
-    # with torch.no_grad():
+    with torch.no_grad():
         
-    #     print(sar_res)
-    #     x = torch.rand(1,3,224,224)
-    #     sar_res.eval()
+        print(sar_res)
+        x = torch.rand(1,3,224,224)
+        sar_res.eval()
 
-    #     y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-    #     # print(len(_masks))
-    #     # for i in range(len(_masks)):
-    #     #     print(_masks[i])
-    #     print(flops / 1e9)
+        y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+        # print(len(_masks))
+        # for i in range(len(_masks)):
+        #     print(_masks[i])
+        print(flops / 1e9)
     

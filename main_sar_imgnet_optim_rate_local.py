@@ -163,7 +163,7 @@ val_FLOPs = []
 args.temp = args.t0
 
 def main():
-    # check_gpu_memory()
+    check_gpu_memory()
     str_t0 = str(args.t0).replace('.', '_')
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')
@@ -257,6 +257,7 @@ def main_worker(gpu, ngpus_per_node, args):
     ### Create model
     # model = pytorchmodels.resnet50(pretrained=False)
     model_type = args.arch_config
+    print(args.arch, args.arch_config)
     model = eval(f'models.{args.arch}.{args.arch_config}')(args)
 
     # print('Model Struture:', str(model))
@@ -450,6 +451,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 else:
                     with open(log_file, "w") as f:
                         df.to_csv(f)
+                ckpt_name = 'checkpoint.pth.tar' if epoch <= args.epochs-10 else f'checkpoint{epoch}.pth.tar'
                 save_checkpoint({
                     'epoch': epoch + 1,
                     'model': model_type,
@@ -469,7 +471,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     'lr_log': lr_log,
                     'epoch_log': epoch_log,
                     'temp': args.temp,
-                }, args, is_best, filename='checkpoint.pth.tar')
+                }, args, is_best, filename=ckpt_name)
 
         epoch_time.update(time.time() - start_time, 1)
         print('Duration: %4f H, Left Time: %4f H' % (

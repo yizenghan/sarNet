@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -156,7 +156,7 @@ class BasicBlock_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.7
+        ratio = 0.5
         # print(ratio)
         mask1 = mask.clone()
         if g > 1:
@@ -362,7 +362,7 @@ class Bottleneck_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.7
+        # ratio = 0.3
         # print(ratio)
         mask1 = mask.clone()
         if g > 1:
@@ -598,8 +598,6 @@ class sarResNet(nn.Module):
                 if 'gs' in str(k):
                     m.weight.data.normal_(0, 0.001)
             elif isinstance(m, nn.BatchNorm2d):
-                # if 'gs' in str(k):
-                #     print(k)
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
@@ -722,15 +720,15 @@ if __name__ == "__main__":
     sar_res = sar_resnet34_alphaBase_4stage_imgnet(args)
     # print(sar_res)
 
-    # with torch.no_grad():
+    with torch.no_grad():
         
-    #     print(sar_res)
-    #     x = torch.rand(1,3,224,224)
-    #     sar_res.eval()
+        print(sar_res)
+        x = torch.rand(1,3,224,224)
+        sar_res.eval()
 
-    #     y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-    #     # print(len(_masks))
-    #     # for i in range(len(_masks)):
-    #     #     print(_masks[i])
-    #     print(flops / 1e9)
+        y1, _masks, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+        # print(len(_masks))
+        # for i in range(len(_masks)):
+        #     print(_masks[i])
+        print(flops / 1e9)
     
