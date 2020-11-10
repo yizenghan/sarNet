@@ -303,9 +303,7 @@ def main_worker(args):
 
     epoch_time = AverageMeter('Epoch Tiem', ':6.3f')
     start_time = time.time()
-    acc_avg = []
-    rate_avg = []
-    flops_avg = []
+
     for epoch in range(args.start_epoch, args.epochs):
         ### Train for one epoch
         target_rate = adjust_target_rate(epoch, args)
@@ -333,14 +331,6 @@ def main_worker(args):
             valid_loss.append(val_loss)
             lr_log.append(lr)
             epoch_log.append(epoch)
-            print('val_act_rate',len(val_act_rate))
-            print('lr_log',len(lr_log))
-            print('epoch_log',len(epoch_log))
-
-            if epoch >= args.epochs - 5:
-                acc_avg.append(val_acc1)
-                rate_avg.append(val_rate)
-                flops_avg.append(val_flops)
 
             df = pd.DataFrame({'val_acc_top1': val_acc_top1, 'val_acc_top5': val_acc_top5, 
                                 'val_act_rate': val_act_rate, 'val_FLOPs': val_FLOPs, 
@@ -379,8 +369,16 @@ def main_worker(args):
             epoch_time.sum / 3600, epoch_time.avg * (args.epochs - epoch - 1) / 3600))
         start_time = time.time()
 
+    file1 = pd.read_csv(log_file)
+    acc1 = np.array(file1['val_acc_top1'])
+    rate1 = np.array(file1['val_act_rate'])
+    flops1 = np.array(file1['val_FLOPs'])
+    loc = np.argmax(acc1)
+    max_acc = acc1[loc]
+    acc_rate = rate1[loc]
+    acc_flops = flops1[loc]
     fout = open(os.path.join(args.train_url, 'log.txt'), mode='a', encoding='utf-8')
-    fout.write("%.6f\t%.6f\t%.6f" % (sum(acc_avg)/5, sum(rate_avg)/5, sum(flops_avg)/5))
+    fout.write("%.6f\t%.6f\t%.6f" % (max_acc, acc_rate, acc_flops))
     print(' * Best Acc@1 {best_acc1:.3f} Acc@5 {best_acc1_corresponding_acc5:.3f}'
           .format(best_acc1=best_acc1, best_acc1_corresponding_acc5=best_acc1_corresponding_acc5))
     return

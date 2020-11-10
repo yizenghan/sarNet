@@ -190,13 +190,13 @@ class bLResNet(nn.Module):
         x = self.bn_bl_init(x)
         x = self.relu(x)
 
-        print('before layer 1:', x.shape)
+        # print('before layer 1:', x.shape)
         x = self.layer1(x)
-        print('before layer 2:', x.shape)
+        # print('before layer 2:', x.shape)
         x = self.layer2(x)
-        print('before layer 3:', x.shape)
+        # print('before layer 3:', x.shape)
         x = self.layer3(x)
-        print('before layer 4:', x.shape)
+        # print('before layer 4:', x.shape)
         x = self.layer4(x)
 
         x = self.gappool(x)
@@ -222,8 +222,17 @@ def blresnet_model(depth, alpha, beta, num_classes=1000, pretrained=False):
 
 if __name__ == '__main__':
     from op_counter import measure_model
-    blres = blresnet_model(depth=50,alpha=2,beta=1)
-    cls_ops, cls_params = measure_model(blres, 224, 224)
-    print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
-    x = torch.rand(1,3,224,224)
-    y = blres(x)
+    import time
+    import numpy as np
+    blres = blresnet_model(depth=50,alpha=4,beta=2).cuda(1)
+
+    # cls_ops, cls_params = measure_model(blres, 224, 224)
+    # print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
+    x = torch.rand(1,3,224,224).cuda(1)
+    t_sim = []
+    for i in range(100):
+        t1 = time.time()
+        y = blres(x)
+        t_sim.append(time.time() - t1)
+    print('TIME sim: ', np.mean(t_sim)) 
+    print(np.std(t_sim)) 
