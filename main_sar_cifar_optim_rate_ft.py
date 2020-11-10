@@ -29,6 +29,7 @@ import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 import torchvision.transforms as transforms
+import torch.nn as nn
 # from queue_jump import check_gpu_memory
 
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
@@ -146,7 +147,8 @@ def main():
             str_lambda = str(args.lambda_act).replace('.', '_')
             str_ta = str(args.target_rate).replace('.', '_')
             str_t_last = str(args.t_last).replace('.', '_')
-            save_path = f'{args.train_url}{args.dataset}/{args.arch_config}/_round{args.round}_optimRate_g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/'
+            str_lr = str(args.lr).replace('.', '_')
+            save_path = f'{args.train_url}{args.dataset}/{args.arch_config}/{str_lr}/_round{args.round}_optimRate_g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/'
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
             args.train_url = save_path
@@ -254,6 +256,18 @@ def main_worker(args):
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
         # assert(0==1)
+    
+    for k, m in model.named_modules():
+        if isinstance(m, nn.Conv2d):
+            # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if 'gs' in str(k):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        #         m.weight.data.normal_(0, 0.001)
+        # elif isinstance(m, nn.BatchNorm2d):
+        #     if 'gs' in str(k):
+        #         nn.init.constant_(m.weight, 1)
+        #         nn.init.constant_(m.bias, 0)
+        print('-------------weight_init successfully--------------')
 
     cudnn.benchmark = True
 
