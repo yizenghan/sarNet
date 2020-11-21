@@ -539,8 +539,10 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         for act in _masks:
             act_rate += torch.mean(act)
             loss_act += torch.pow(target_rate-torch.mean(act), 2)
+            
         act_rate = torch.mean(act_rate / len(_masks))
         loss_act = args.lambda_act * torch.mean(loss_act/len(_masks))
+        # print(target_rate, act_rate, args.lambda_act, loss_act)
         if args.dynamic_rate > 0:
             loss = loss_cls + loss_act
         else:
