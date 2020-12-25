@@ -36,23 +36,24 @@ import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 
+from queue_jump import check_gpu_memory
+
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
-parser.add_argument('--data_url', type=str, metavar='DIR', default='/data/dataset/CLS-LOC/',
-                    help='path to dataset')
-parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/test/',
+parser.add_argument('--data_url', type=str, metavar='DIR', default='/home/data/ImageNet/', help='path to dataset')
+parser.add_argument('--train_url', type=str, metavar='PATH', default='/data/hanyz/code/sarNet/log/',
                     help='path to save result and checkpoint (default: results/savedir)')
 parser.add_argument('--dataset', metavar='DATASET', default='imagenet', choices=['cifar10', 'cifar100', 'imagenet'],
                     help='dataset')
 parser.add_argument('-j', '--workers', default=64, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
+parser.add_argument('--epochs', default=110, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch_size', default=128, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
-parser.add_argument('--lr', '--learning_rate', default=0.05, type=float,
+parser.add_argument('--lr', '--learning_rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate (default: 0.1)')
 parser.add_argument('--scheduler', default='multistep', type=str, metavar='T',
                     help='learning rate strategy (default: multistep)',
@@ -105,7 +106,7 @@ parser.add_argument('--multiprocessing_distributed', action='store_true',
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
 
-parser.add_argument('--t0', default=5.0, type=float, metavar='M', help='momentum')
+parser.add_argument('--t0', default=1.0, type=float, metavar='M', help='momentum')
 parser.add_argument('--t_last', default=0.01, type=float, metavar='M', help='momentum')
 parser.add_argument('--target_flops', default=2.5, type=float, metavar='M', help='momentum')
 parser.add_argument('--lambda_act', default=1.0, type=float, metavar='M', help='momentum')
@@ -113,17 +114,26 @@ parser.add_argument('--temp', default=0.1, type=float, metavar='M', help='moment
 parser.add_argument('--lrfact', default=1, type=float,
                     help='learning rate factor')
 parser.add_argument('--dynamic_rate', default=0, type=int)
+
+parser.add_argument('--arch', default='sar_resnet_imgnet4stage_alphaBase', type=str)
+parser.add_argument('--arch_config', default='sar_resnet34_alphaBase_4stage_cifar', type=str)
 parser.add_argument('--patch_groups', default=2, type=int)
 parser.add_argument('--alpha', default=2, type=int)
+parser.add_argument('--beta', default=1, type=int)
 parser.add_argument('--base_scale', default=2, type=int)
-parser.add_argument('--optimize_rate_begin_epoch', default=45, type=int)
+parser.add_argument('--mask_size', default=7, type=int)
 parser.add_argument('--temp_scheduler', default='exp', type=str)
+parser.add_argument('--t_last_epoch', default=160, type=int)
+parser.add_argument('--ta_begin_epoch', default=30, type=int)
+parser.add_argument('--ta_last_epoch', default=60, type=int)
 
 parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
 
 args = parser.parse_args()
-args.dynamic_rate = True if args.dynamic_rate > 0 else False
+# args.t_last_epoch = args.epochs
+args.train_on_cloud = False
+# args.dynamic_rate = True if args.dynamic_rate > 0 else False
 if args.use_amp > 0:
     try:
         from apex import amp
@@ -150,12 +160,15 @@ lr_log = []
 epoch_log = []
 val_act_rate = []
 val_FLOPs = []
+args.temp = args.t0
 
 def main():
+    check_gpu_memory()
     str_t0 = str(args.t0).replace('.', '_')
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_flops).replace('.', '_')
-    save_path = f'{args.train_url}_OptimFlops_g{args.patch_groups}_a{args.alpha}_s{args.base_scale}_t0_{str_t0}_target{str_ta}_optimizeFromEpoch{args.optimize_rate_begin_epoch}_lambda_{str_lambda}_dynamicRate{args.dynamic_rate}/'
+    str_t_last = str(args.t_last).replace('.', '_')
+    save_path = f'{args.train_url}_ImageNet/{args.arch_config}_OptimRate/g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/'
     args.train_url = save_path
     if not args.train_on_cloud:
         if not os.path.exists(args.train_url):
@@ -218,7 +231,7 @@ def main_worker(gpu, ngpus_per_node, args):
     print(args.cfg)
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
-    print('Hyper-parameters:', str(args))
+    # print('Hyper-parameters:', str(args))
 
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
@@ -243,10 +256,11 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ### Create model
     # model = pytorchmodels.resnet50(pretrained=False)
-    model_type = args.cfg['model'].pop('type')
-    model = eval(model_type)(**args.cfg['model'])\
+    model_type = args.arch_config
+    print(args.arch, args.arch_config)
+    model = eval(f'models.{args.arch}.{args.arch_config}')(args)
 
-    print('Model Struture:', str(model))
+    # print('Model Struture:', str(model))
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
             f.write(str(model))
@@ -257,6 +271,9 @@ def main_worker(gpu, ngpus_per_node, args):
     model.eval()
     rand_inp = torch.rand(1, 3, 224,224)
     _, _, args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
+    # dist.all_reduce(args.full_flops)
+    # args.full_flops /= args.world_size
+    args.full_flops = args.full_flops.item()
     args.full_flops /= 1e9
     print(f'FULL FLOPs: {args.full_flops}')
 
@@ -344,6 +361,7 @@ def main_worker(gpu, ngpus_per_node, args):
             lr_log = checkpoint['lr_log']
             val_act_rate = checkpoint['val_act_rate']
             val_FLOPs = checkpoint['val_FLOPs']
+            args.temp = checkpoint['temp']
             try:
                 epoch_log = checkpoint['epoch_log']
             except:
@@ -379,24 +397,25 @@ def main_worker(gpu, ngpus_per_node, args):
         datasets.ImageFolder(
             valdir,
             get_transform(args, is_train_set=False)),
-        batch_size=args.batch_size * torch.cuda.device_count(), shuffle=False,
+        batch_size=args.batch_size * torch.cuda.device_count()//2, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
         # target_flops = args.target_flops
-        validate(val_loader, model, criterion, args)
+        validate(val_loader, model, criterion, args, target_flops=args.target_flops)
         return
 
-    FLOPs_avg = []
     epoch_time = AverageMeter('Epoch Tiem', ':6.3f')
     start_time = time.time()
-    
+    # args.temp = args.t0
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
         ### Train for one epoch
         target_flops = adjust_target_flops(epoch, args)
-        print(f'Target flops: {target_flops}')
+        print(f'Epoch {epoch}, Target rate: {target_flops}')
+        print(f'Temperature: {args.temp}')
+        # tr_acc1, tr_acc5, tr_loss, lr = 0,0,0,0
         tr_acc1, tr_acc5, tr_loss, lr = \
             train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_flops)
 
@@ -435,6 +454,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 else:
                     with open(log_file, "w") as f:
                         df.to_csv(f)
+                ckpt_name = 'checkpoint.pth.tar' if epoch <= args.epochs-10 else f'checkpoint{epoch}.pth.tar'
                 save_checkpoint({
                     'epoch': epoch + 1,
                     'model': model_type,
@@ -453,7 +473,8 @@ def main_worker(gpu, ngpus_per_node, args):
                     'valid_loss': valid_loss,
                     'lr_log': lr_log,
                     'epoch_log': epoch_log,
-                }, args, is_best, filename='checkpoint.pth.tar')
+                    'temp': args.temp,
+                }, args, is_best, filename=ckpt_name)
 
         epoch_time.update(time.time() - start_time, 1)
         print('Duration: %4f H, Left Time: %4f H' % (
@@ -469,7 +490,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses_cls = AverageMeter('Loss_cls', ':.4e')
-    losses_flops = AverageMeter('Loss_FLOPs', ':.4e')
+    losses_flops = AverageMeter('loss_flops', ':.4e')
     losses = AverageMeter('Loss', ':.4e')
     act_rates = AverageMeter('Activation rate', ':.2e')
     top1 = AverageMeter('Acc@1', ':6.2f')
@@ -479,7 +500,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
     train_progress = ProgressMeter(
         train_batches_num,
-        [batch_time, data_time,act_rates, losses, losses_cls, losses_flops,FLOPs, top1, top5],
+        [batch_time, data_time,act_rates,FLOPs, losses, losses_cls, losses_flops, top1, top5],
         prefix="Epoch: [{}/{}]".format(epoch, args.epochs))
 
     model.train()
@@ -518,15 +539,19 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         
 
         act_rate = 0.0
+        # loss_flops = 0.0
+        loss_flops = args.lambda_act * torch.pow(target_flops - flops, 2)
         for act in _masks:
             act_rate += torch.mean(act)
-
+            # loss_flops += torch.pow(target_flops-torch.mean(act), 2)
+            
         act_rate = torch.mean(act_rate / len(_masks))
-        loss_flops = args.lambda_act * torch.pow(target_flops - flops, 2)
+        # loss_flops = args.lambda_act * loss_flops
+        # print(target_flops, act_rate, args.lambda_act, loss_flops)
         if args.dynamic_rate > 0:
             loss = loss_cls + loss_flops
         else:
-            loss = loss_cls + loss_flops if epoch >= args.optimize_rate_begin_epoch else loss_cls
+            loss = loss_cls + loss_flops if epoch >= args.ta_begin_epoch else loss_cls
 
         FLOPs.update(flops.item(), input.size(0))
         act_rates.update(act_rate.item(), input.size(0))
@@ -564,14 +589,14 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         if i % args.print_freq == 0:
             train_progress.display(i)
             print('LR: %6.4f' % (lr))
-            print('FLOPs: %6.4f' % (FLOPs.avg))
+            print('FLOPs: %6.4f' % (flops))
 
     return top1.avg, top5.avg, losses.avg, lr
 
 def validate(val_loader, model, criterion, args, target_flops):
     batch_time = AverageMeter('Time', ':6.3f')
     losses_cls = AverageMeter('Loss_cls', ':.4e')
-    losses_flops = AverageMeter('Loss_flops', ':.4e')
+    losses_flops = AverageMeter('loss_flops', ':.4e')
     FLOPs = AverageMeter('Activation rate', ':.2e')
     losses = AverageMeter('Loss', ':.4e')
     act_rates = AverageMeter('Activation rate', ':.2e')
@@ -598,10 +623,14 @@ def validate(val_loader, model, criterion, args, target_flops):
             loss_cls= criterion(output, target)
             
             act_rate = 0.0
+            # loss_flops = 0.0
+            loss_flops = args.lambda_act * torch.pow(target_flops - flops, 2)
             for act in _masks:
                 act_rate += torch.mean(act)
-            loss_flops = args.lambda_act * torch.pow(target_flops - flops, 2)
-            act_rate = torch.mean(act_rate / len(_masks))
+                # loss_flops += torch.pow(target_flops-torch.mean(act), 2)
+            act_rate = torch.mean(act_rate/len(_masks))
+            # loss_flops = torch.mean(loss_flops/len(_masks))
+            # loss_flops = args.lambda_act * loss_flops
             loss = loss_cls + loss_flops
 
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
@@ -623,18 +652,9 @@ def validate(val_loader, model, criterion, args, target_flops):
             
             FLOPs.update(flops.item(), input.size(0))
             act_rates.update(act_rate.item(), input.size(0))
-            losses_flops.update(loss_flops.item(),input.size(0))
+            losses_flops.update(loss_flops.item(), input.size(0))
             losses_cls.update(loss_cls.item(), input.size(0))
-
-            # Compute output ten crop
-            # bs, ncrops, c, h, w = input.size()
-            # output_ncrop = model(input.view(-1, c, h, w))
-            # output = output_ncrop.view(bs, ncrops, -1).mean(1)
-            # loss = criterion(output, target)
-
-            ### Measure accuracy and record loss
-            
-            losses.update(loss.data.item(), input.size(0))
+            losses.update(loss.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             top5.update(acc5.item(), input.size(0))
 
@@ -650,26 +670,44 @@ def validate(val_loader, model, criterion, args, target_flops):
 
     return top1.avg, top5.avg, losses.avg, act_rates.avg, FLOPs.avg
 
-
 def adjust_gs_temperature(epoch, step, len_epoch, args):
-    T_total = args.epochs * len_epoch
-    T_cur = epoch * len_epoch + step
-    if args.temp_scheduler == 'exp':
-        alpha = math.pow(args.t_last/args.t0, 1/(args.epochs*len_epoch))
-        args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
-    elif args.temp_scheduler == 'linear':
-        args.temp = (args.t0 - args.t_last) * (1 - T_cur / T_total) + args.t_last
+    if epoch >= args.t_last_epoch:
+        return args.t_last
     else:
-        args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / T_total)) + args.t_last
+        T_total = args.t_last_epoch * len_epoch
+        T_cur = epoch * len_epoch + step
+        if args.temp_scheduler == 'exp':
+            alpha = math.pow(args.t_last / args.t0, 1 / T_total)
+            args.temp = math.pow(alpha, T_cur) * args.t0
+        elif args.temp_scheduler == 'linear':
+            args.temp = (args.t0 - args.t_last) * (1 - T_cur / T_total) + args.t_last
+        else:
+            args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / (T_total))) + args.t_last
 
 def adjust_target_flops(epoch, args):
-    if not args.dynamic_rate:
+    if args.dynamic_rate == 0:
         return args.target_flops
-
-    if epoch < args.optimize_rate_begin_epoch:
-        target_flops = args.full_flops.item()
-    else:
-        target_flops = args.target_flops
+    elif args.dynamic_rate == 1:
+        if epoch < args.ta_last_epoch // 2:
+            target_flops = args.full_flops
+        else:
+            target_flops = args.target_flops
+    elif args.dynamic_rate == 2:
+        if epoch < args.ta_begin_epoch :
+            target_flops = args.full_flops
+        elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
+            target_flops = args.target_flops + (args.full_flops - args.target_flops)/3*2
+        elif epoch < args.ta_last_epoch:
+            target_flops = args.target_flops + (args.full_flops - args.target_flops)/3
+        else:
+            target_flops = args.target_flops
+    elif args.dynamic_rate == 3:
+        if epoch < args.ta_begin_epoch :
+            target_flops = args.full_flops
+        elif epoch < args.ta_last_epoch:
+            target_flops = (args.full_flops - args.target_flops) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch)) + args.target_flops
+        else:
+            target_flops = args.target_flops
     return target_flops
 
 if __name__ == '__main__':

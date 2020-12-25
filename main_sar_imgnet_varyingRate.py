@@ -1,5 +1,5 @@
-import moxing as mox
-mox.file.shift('os', 'mox')
+# import moxing as mox
+# mox.file.shift('os', 'mox')
 
 import os
 import argparse
@@ -270,7 +270,9 @@ def main_worker(gpu, ngpus_per_node, args):
     ### Calculate FLOPs & Param
     model.eval()
     rand_inp = torch.rand(1, 3, 224,224)
-    _, _, args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
+    _, _masks, args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
+    args.n_mask = len(_masks)
+    args.rate_list = [1 for i in range(args.n_mask)]
     args.full_flops /= 1e9
     print(f'FULL FLOPs: {args.full_flops}')
 
@@ -409,16 +411,16 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.distributed:
             train_sampler.set_epoch(epoch)
         ### Train for one epoch
-        target_rate = adjust_target_rate(epoch, args)
-        print(f'Epoch {epoch}, Target rate: {target_rate}')
+        args.rate_list = adjust_target_rate(epoch, args)
+        print(f'Epoch {epoch}, Target rate: {args.rate_list}')
         print(f'Temperature: {args.temp}')
        
         tr_acc1, tr_acc5, tr_loss, lr = \
-            train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
+            train(train_loader, model, criterion, optimizer, scheduler, epoch, args)
 
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
-            val_acc1, val_acc5, val_loss, val_rate, val_flops = validate(val_loader, model, criterion, args, target_rate)
+            val_acc1, val_acc5, val_loss, val_rate, val_flops = validate(val_loader, model, criterion, args)
             # assert(0==1)
             ### Remember best Acc@1 and save checkpoint
             is_best = val_acc1 > best_acc1
@@ -483,7 +485,7 @@ def main_worker(gpu, ngpus_per_node, args):
     return
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate):
+def train(train_loader, model, criterion, optimizer, scheduler, epoch, args):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses_cls = AverageMeter('Loss_cls', ':.4e')
@@ -536,9 +538,12 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
         act_rate = 0.0
         loss_act = 0.0
+
+        ii = 0
         for act in _masks:
             act_rate += torch.mean(act)
-            loss_act += torch.pow(target_rate-torch.mean(act), 2)
+            loss_act += torch.pow(args.rate_list[ii]-torch.mean(act), 2)
+            ii += 1
         act_rate = torch.mean(act_rate / len(_masks))
         loss_act = args.lambda_act * torch.mean(loss_act/len(_masks))
         if args.dynamic_rate > 0:
@@ -586,7 +591,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
     return top1.avg, top5.avg, losses.avg, lr
 
-def validate(val_loader, model, criterion, args, target_rate):
+def validate(val_loader, model, criterion, args):
     batch_time = AverageMeter('Time', ':6.3f')
     losses_cls = AverageMeter('Loss_cls', ':.4e')
     losses_act = AverageMeter('loss_act', ':.4e')
@@ -617,9 +622,12 @@ def validate(val_loader, model, criterion, args, target_rate):
             
             act_rate = 0.0
             loss_act = 0.0
+
+            ii = 0
             for act in _masks:
                 act_rate += torch.mean(act)
-                loss_act += torch.pow(target_rate-torch.mean(act), 2)
+                loss_act += torch.pow(args.rate_list[ii]-torch.mean(act), 2)
+                ii += 1
             act_rate = torch.mean(act_rate/len(_masks))
             loss_act = torch.mean(loss_act/len(_masks))
             loss_act = args.lambda_act * loss_act
@@ -687,29 +695,33 @@ def adjust_gs_temperature(epoch, step, len_epoch, args):
 
 def adjust_target_rate(epoch, args):
     if args.dynamic_rate == 0:
-        return args.target_rate
+        for i in range(args.n_mask):
+            args.rate_list[i] = args.target_rate
+
     elif args.dynamic_rate == 1:
         if epoch < args.ta_last_epoch // 2:
-            target_rate = 1.0
+            for i in range(args.n_mask):
+                args.rate_list[i] = 1
         else:
-            target_rate = args.target_rate
+            for i in range(args.n_mask):
+                args.rate_list[i] = args.target_rate + (0.3 - args.target_rate) / args.n_mask * i
+
     elif args.dynamic_rate == 2:
         if epoch < args.ta_begin_epoch :
-            target_rate = 1.0
+            for i in range(args.n_mask):
+                args.rate_list[i] = 1
         elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3*2
+            for i in range(args.n_mask):
+                args.rate_list[i] = target_rate + (0.77 - target_rate) / args.n_mask * i
         elif epoch < args.ta_last_epoch:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3
+            for i in range(args.n_mask):
+                args.rate_list[i] = target_rate + (0.53 - target_rate) / args.n_mask * i
         else:
-            target_rate = args.target_rate
-    elif args.dynamic_rate == 3:
-        if epoch < args.ta_begin_epoch :
-            target_rate = 1.0
-        elif epoch < args.ta_last_epoch:
-            target_rate = (1 - args.target_rate) * (1 - (epoch-args.ta_begin_epoch) / (args.ta_last_epoch-args.ta_begin_epoch)) + args.target_rate
-        else:
-            target_rate = args.target_rate
-    return target_rate
+           for i in range(args.n_mask):
+                args.rate_list[i] = args.target_rate + (0.3 - args.target_rate) / args.n_mask * i
+    return args.rate_list
 
 if __name__ == '__main__':
     main()

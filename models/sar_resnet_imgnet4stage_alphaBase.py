@@ -405,6 +405,7 @@ class maskGen(nn.Module):
         super(maskGen,self).__init__()
         self.groups = groups
         self.mask_size = mask_size
+        # print('Mask size:', mask_size)
         self.conv3x3_gs = nn.Sequential(
             nn.Conv2d(inplanes, groups*4,kernel_size=3, padding=1, stride=1, bias=False, groups = groups),
             nn.BatchNorm2d(groups*4),
@@ -528,7 +529,7 @@ class sarModule(nn.Module):
             x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
-            x_refine = self.refine_module[i](x_refine, mask, inference=False) 
+            x_refine = self.refine_module[i](x_refine, mask, inference=inference) 
         if self.alpha != 1:
             x_base = self.base_transform(x_base)
         if self.beta != 1:

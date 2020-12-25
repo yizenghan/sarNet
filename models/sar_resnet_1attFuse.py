@@ -434,6 +434,8 @@ class maskGen(nn.Module):
         super(maskGen,self).__init__()
         self.groups = groups
         self.mask_size = mask_size
+        if mask_size == 14:
+            print('Mask size:', mask_size)
         self.conv3x3_gs = nn.Sequential(
             nn.Conv2d(inplanes, groups*4,kernel_size=3, padding=1, stride=1, bias=False, groups = groups),
             nn.BatchNorm2d(groups*4),
@@ -615,9 +617,9 @@ class sarResNet(nn.Module):
 
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = sarModule(block_base, block_refine, num_channels[0], num_channels[0]*block_base.expansion, 
-                               layers[0], stride=2, groups=patch_groups,mask_size=mask_size, alpha=alpha, base_scale=base_scale)
+                               layers[0], stride=2, groups=patch_groups,mask_size=14, alpha=alpha, base_scale=base_scale)
         self.layer2 = sarModule(block_base, block_refine, num_channels[0]*block_base.expansion,
-                               num_channels[1]*block_base.expansion, layers[1], stride=2, groups=patch_groups,mask_size=mask_size, alpha=alpha,beta=beta, base_scale=base_scale)
+                               num_channels[1]*block_base.expansion, layers[1], stride=2, groups=patch_groups,mask_size=7, alpha=alpha,beta=beta, base_scale=base_scale)
         
         self.layer3 = sarModule(block_base, block_refine, num_channels[1]*block_base.expansion,
                                num_channels[2]*block_base.expansion, layers[2], stride=1, groups=patch_groups,mask_size=2, alpha=alpha, beta=beta, base_scale=2)
@@ -738,6 +740,9 @@ def sar_resnet34_1attFuse(args):
 
 def sar_resnet50_1attFuse(args):
     return sar_resnet_imgnet_alphaBase(depth=50, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
+
+def sar_resnet101_1attFuse(args):
+    return sar_resnet_imgnet_alphaBase(depth=101, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
 
 
 if __name__ == "__main__":
