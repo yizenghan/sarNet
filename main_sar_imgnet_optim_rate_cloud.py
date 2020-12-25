@@ -36,7 +36,7 @@ import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 
-from queue_jump import check_gpu_memory
+# from queue_jump import check_gpu_memory
 
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
@@ -163,7 +163,7 @@ val_FLOPs = []
 args.temp = args.t0
 
 def main():
-    check_gpu_memory()
+    # check_gpu_memory()
     str_t0 = str(args.t0).replace('.', '_')
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')

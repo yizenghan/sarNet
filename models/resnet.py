@@ -515,12 +515,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch resnet Training')
     args = parser.parse_args()
 
-    args.num_classes = 10
+    args.num_classes = 1000
     with torch.no_grad():
-        net = resnet32()
-        print(net)
+        net = resnet50()
+        # print(net)
         
-        cls_ops, cls_params = measure_model(net, 32,32)
+        cls_ops, cls_params = measure_model(net, 224,224)
         print(cls_params[-1]/1e6, cls_ops[-1]/1e8)
 
     # import numpy as np
