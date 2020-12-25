@@ -132,7 +132,7 @@ parser.add_argument('--use_amp', type=int, default=0,
 
 args = parser.parse_args()
 # args.t_last_epoch = args.epochs
-args.train_on_cloud = False
+args.train_on_cloud = True
 # args.dynamic_rate = True if args.dynamic_rate > 0 else False
 if args.use_amp > 0:
     try:
@@ -141,7 +141,8 @@ if args.use_amp > 0:
         from apex.parallel import convert_syncbn_model
         has_apex = True
     except ImportError:
-        os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./apex-master')
+        mox.file.copy_parallel('sarNet/apex-master/', '/cache/apex-master')
+        os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" /cache/apex-master')
         from apex import amp
         from apex.parallel import DistributedDataParallel as DDP
         from apex.parallel import convert_syncbn_model
