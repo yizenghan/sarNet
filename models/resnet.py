@@ -90,6 +90,7 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
         # print(params_count(self)/1e6)
+        print(inplanes, width, planes*self.expansion,groups, base_width)
     def forward(self, x):
         identity = x
         # print('input, ',x.shape)
@@ -517,11 +518,12 @@ if __name__ == "__main__":
 
     args.num_classes = 1000
     with torch.no_grad():
-        net = resnet50()
+        net = resnext50_32x4d()
+        # assert(0==1)
         # print(net)
         
         cls_ops, cls_params = measure_model(net, 224,224)
-        print(cls_params[-1]/1e6, cls_ops[-1]/1e8)
+        print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
 
     # import numpy as np
     # def params_count(model):

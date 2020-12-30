@@ -401,7 +401,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.evaluate:
         # target_rate = args.target_rate
-        validate(val_loader, model, criterion, args)
+        validate(val_loader, model, criterion, args, target_rate=args.target_rate)
         return
 
     epoch_time = AverageMeter('Epoch Tiem', ':6.3f')
@@ -704,7 +704,7 @@ def adjust_target_rate(epoch, args):
                 args.rate_list[i] = 1
         else:
             for i in range(args.n_mask):
-                args.rate_list[i] = args.target_rate + (0.3 - args.target_rate) / args.n_mask * i
+                args.rate_list[args.n_mask-1-i] = args.target_rate + (0.3 - args.target_rate) / args.n_mask * i
 
     elif args.dynamic_rate == 2:
         if epoch < args.ta_begin_epoch :
@@ -713,14 +713,14 @@ def adjust_target_rate(epoch, args):
         elif epoch < args.ta_begin_epoch + (args.ta_last_epoch-args.ta_begin_epoch)//2:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3*2
             for i in range(args.n_mask):
-                args.rate_list[i] = target_rate + (0.77 - target_rate) / args.n_mask * i
+                args.rate_list[args.n_mask-1-i] = target_rate + (0.77 - target_rate) / args.n_mask * i
         elif epoch < args.ta_last_epoch:
             target_rate = args.target_rate + (1.0 - args.target_rate)/3
             for i in range(args.n_mask):
-                args.rate_list[i] = target_rate + (0.53 - target_rate) / args.n_mask * i
+                args.rate_list[args.n_mask-1-i] = target_rate + (0.53 - target_rate) / args.n_mask * i
         else:
            for i in range(args.n_mask):
-                args.rate_list[i] = args.target_rate + (0.3 - args.target_rate) / args.n_mask * i
+                args.rate_list[args.n_mask-1-i] = args.target_rate + (0.3 - args.target_rate) / args.n_mask * i
     return args.rate_list
 
 if __name__ == '__main__':
