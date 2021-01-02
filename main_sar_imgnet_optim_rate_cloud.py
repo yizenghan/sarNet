@@ -169,7 +169,7 @@ def main():
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')
     str_t_last = str(args.t_last).replace('.', '_')
-    save_path = f'{args.train_url}/{args.arch_config}_OptimRate/g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/'
+    save_path = f'{args.train_url}/{args.arch_config}_g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}_t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/'
     args.train_url = save_path
     if not args.train_on_cloud:
         if not os.path.exists(args.train_url):

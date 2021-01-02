@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -213,7 +213,7 @@ class Bottleneck_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        # ratio = 0.75
+        ratio = 0.7
         mask1 = mask.clone()
         if g > 1:
             mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
@@ -326,8 +326,8 @@ class sarModule(nn.Module):
         for _ in range(blocks - 1):
             mask_gen_list.append(maskGen(groups=groups,inplanes=out_channels//alpha,mask_size=mask_size))
         self.mask_gen = nn.ModuleList(mask_gen_list)
-        base_last_relu = True if alpha > 1 else False
-        refine_last_relu = True if beta > 1 else False
+        base_last_relu = True if alpha != 1 else False
+        refine_last_relu = True if beta != 1 else False
         self.base_module = self._make_layer(block_base, in_channels, out_channels// alpha, blocks - 1, 2, last_relu=base_last_relu, base_scale=base_scale)
         
         self.refine_module = self._make_layer(block_refine, in_channels, int(out_channels*beta) , blocks - 1, 1, last_relu=refine_last_relu, base_scale=base_scale)
@@ -566,9 +566,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
-    args.patch_groups = 2
+    args.patch_groups = 4
     args.mask_size = 7
-    args.alpha = 2
+    args.alpha = 1
     args.beta = 1
     args.base_scale = 2
     sar_res = sar_resnext50_32x4_1attFuse(args)
