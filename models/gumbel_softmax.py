@@ -72,3 +72,16 @@ class GumbleSoftmax(torch.nn.Module):
             return self.gumbel_softmax(logits, temperature=temp, hard=False)
         else:
             return self.gumbel_softmax(logits, temperature=temp, hard=True) 
+
+
+if __name__ == '__main__':
+    m = torch.rand((1,1,2,1,1))
+    print(m)
+    print(torch.exp(m[0,0,1,0,0])/torch.sum(torch.exp(m)))
+    gumbel_layer = GumbleSoftmax()
+    cnt = 0.0
+    for i in range(1000):
+        mm = gumbel_layer(m, temp=0.001, force_hard=True)
+        if(mm[0,0,1,0,0]==1):
+            cnt += 1
+    print(cnt/1000)

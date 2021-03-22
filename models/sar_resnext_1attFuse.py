@@ -41,7 +41,7 @@ class Bottleneck(nn.Module):
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, last_relu=True,patch_groups=1, 
-                 base_scale=2, is_first=False):
+                 base_scale=2, is_first=False, groups_3x3=32):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes // 2, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes // 2)
@@ -138,7 +138,7 @@ class Bottleneck(nn.Module):
 class Bottleneck_refine(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, last_relu=True,patch_groups=1, base_scale=2, is_first = True):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, last_relu=True,patch_groups=1, base_scale=2, is_first = True, groups_3x3=32):
         super(Bottleneck_refine, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes // 2, kernel_size=1, bias=False,groups=patch_groups)
         self.bn1 = nn.BatchNorm2d(planes // 2)
@@ -213,7 +213,7 @@ class Bottleneck_refine(nn.Module):
         g = mask.shape[1]
         m_h = mask.shape[2]
         ratio = mask.sum() / mask.numel()
-        ratio = 0.7
+        # ratio = 0.5
         mask1 = mask.clone()
         if g > 1:
             mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
@@ -328,9 +328,9 @@ class sarModule(nn.Module):
         self.mask_gen = nn.ModuleList(mask_gen_list)
         base_last_relu = True if alpha != 1 else False
         refine_last_relu = True if beta != 1 else False
-        self.base_module = self._make_layer(block_base, in_channels, out_channels// alpha, blocks - 1, 2, last_relu=base_last_relu, base_scale=base_scale)
+        self.base_module = self._make_layer(block_base, in_channels, out_channels// alpha, blocks - 1, 2, last_relu=base_last_relu, base_scale=base_scale, groups_3x3=int(32//alpha))
         
-        self.refine_module = self._make_layer(block_refine, in_channels, int(out_channels*beta) , blocks - 1, 1, last_relu=refine_last_relu, base_scale=base_scale)
+        self.refine_module = self._make_layer(block_refine, in_channels, int(out_channels*beta) , blocks - 1, 1, last_relu=refine_last_relu, base_scale=base_scale, groups_3x3=int(32*beta))
         self.alpha = alpha
         self.beta = beta
         if alpha != 1:
@@ -346,7 +346,7 @@ class sarModule(nn.Module):
         self.att_gen = AttentionLayer(channel=out_channels, reduction=16) 
         self.fusion = self._make_layer(block_base, out_channels, out_channels, 1, stride=stride, base_scale=base_scale)
 
-    def _make_layer(self, block, inplanes, planes, blocks, stride=1, last_relu=True, base_scale=2):
+    def _make_layer(self, block, inplanes, planes, blocks, stride=1, last_relu=True, base_scale=2, groups_3x3=32):
         downsample = []
         if stride != 1:
             downsample.append(nn.AvgPool2d(3, stride=2, padding=1))
@@ -363,14 +363,14 @@ class sarModule(nn.Module):
         layers = []
         if blocks == 1:         # fuse, is not the first of a base branch
             layers.append(block(inplanes, planes, stride=stride, downsample=downsample,
-                                patch_groups=self.patch_groups, base_scale=base_scale, is_first = False))
+                                patch_groups=self.patch_groups, base_scale=base_scale, is_first = False, groups_3x3=groups_3x3))
         else:
             layers.append(block(inplanes, planes, stride, downsample,patch_groups=self.patch_groups, 
-                             base_scale=base_scale, is_first = True))
+                             base_scale=base_scale, is_first = True, groups_3x3=groups_3x3))
             for i in range(1, blocks):
                 layers.append(block(planes, planes,
                                     last_relu=last_relu if i == blocks - 1 else True, 
-                                    patch_groups=self.patch_groups, base_scale=base_scale, is_first = False))
+                                    patch_groups=self.patch_groups, base_scale=base_scale, is_first = False, groups_3x3=groups_3x3))
 
         return nn.ModuleList(layers)
 
@@ -570,7 +570,7 @@ if __name__ == "__main__":
     args.mask_size = 7
     args.alpha = 1
     args.beta = 1
-    args.base_scale = 2
+    args.base_scale = 4
     sar_res = sar_resnext50_32x4_1attFuse(args)
     # assert(0==1)
     # print(sar_res)
