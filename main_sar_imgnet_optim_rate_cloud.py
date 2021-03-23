@@ -129,9 +129,10 @@ parser.add_argument('--ta_last_epoch', default=60, type=int)
 
 parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
-
+parser.add_argument('--use_stem', type=int, default=0)
 args = parser.parse_args()
 # args.t_last_epoch = args.epochs
+args.use_stem = True if args.use_stem > 0 else False
 args.train_on_cloud = True
 # args.dynamic_rate = True if args.dynamic_rate > 0 else False
 if args.use_amp > 0:
