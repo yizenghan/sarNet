@@ -708,7 +708,7 @@ class sarResNet(nn.Module):
         c_in = x.shape[1]
 
         if self.use_stem:
-            print('fuck')
+            # print('fuck')
             x = self.stem(x)
             flops += (c_in * x.shape[1]//2 +  x.shape[1]**2//4 +  x.shape[1]**2//2) * x.shape[2] * x.shape[3] * 9
         else:
