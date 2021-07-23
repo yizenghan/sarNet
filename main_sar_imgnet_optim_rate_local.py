@@ -165,7 +165,7 @@ val_FLOPs = []
 args.temp = args.t0
 
 def main():
-    check_gpu_memory()
+    # check_gpu_memory()
     str_t0 = str(args.t0).replace('.', '_')
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')
@@ -234,7 +234,8 @@ def main_worker(gpu, ngpus_per_node, args):
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
     # print('Hyper-parameters:', str(args))
-
+    # print(args.batch_size)
+    # assert(0==1)
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
             f.write(str(args))
@@ -415,9 +416,9 @@ def main_worker(gpu, ngpus_per_node, args):
         print(f'Epoch {epoch}, Target rate: {target_rate}')
         print(f'Temperature: {args.temp}')
        
-        tr_acc1, tr_acc5, tr_loss, lr = \
-            train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
-
+        # tr_acc1, tr_acc5, tr_loss, lr = \
+        #     train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
+        tr_acc1, tr_acc5, tr_loss, lr = 0,0,0,0
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
             val_acc1, val_acc5, val_loss, val_rate, val_flops = validate(val_loader, model, criterion, args, target_rate)
