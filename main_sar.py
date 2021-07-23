@@ -1,5 +1,5 @@
-import moxing as mox
-mox.file.shift('os', 'mox')
+# import moxing as mox
+# mox.file.shift('os', 'mox')
 
 import os
 import argparse
@@ -105,7 +105,8 @@ parser.add_argument('--multiprocessing_distributed', action='store_true',
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
 
-parser.add_argument('--t0', default=0.5, type=float, metavar='M', help='momentum')
+parser.add_argument('--t0', default=5.0, type=float, metavar='M', help='momentum')
+parser.add_argument('--t_last', default=0.01, type=float, metavar='M', help='momentum')
 parser.add_argument('--target_rate', default=0.5, type=float, metavar='M', help='momentum')
 parser.add_argument('--lambda_act', default=1.0, type=float, metavar='M', help='momentum')
 parser.add_argument('--temp', default=0.1, type=float, metavar='M', help='momentum')
@@ -114,13 +115,13 @@ parser.add_argument('--lrfact', default=1, type=float,
 parser.add_argument('--dynamic_rate', default=0, type=int)
 parser.add_argument('--patch_groups', default=1, type=int)
 parser.add_argument('--optimize_rate_begin_epoch', default=45, type=int)
-
+parser.add_argument('--temp_scheduler', default='exp', type=str)
 
 parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
 
 args = parser.parse_args()
-
+args.dynamic_rate = True if args.dynamic_rate > 0 else False
 if args.use_amp > 0:
     from apex import amp
     from apex.parallel import DistributedDataParallel as DDP
@@ -226,7 +227,12 @@ def main_worker(gpu, ngpus_per_node, args):
     model_type = args.cfg['model'].pop('type')
     model = eval(model_type)(**args.cfg['model'])
     print('Model Struture:', str(model))
-
+    if args.train_on_cloud:
+        with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
+            f.write(str(model))
+    else:
+        with open(args.train_url+'model_arch.txt', "w") as f:
+            f.write(str(model))
     ### Calculate FLOPs & Param
     # params = 0
     # import operator
@@ -377,6 +383,7 @@ def main_worker(gpu, ngpus_per_node, args):
             train_sampler.set_epoch(epoch)
         ### Train for one epoch
         target_rate = adjust_target_rate(epoch, args)
+        print(f'Target rate: {target_rate}')
         tr_acc1, tr_acc5, tr_loss, lr = \
             train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
 
@@ -411,7 +418,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     with open(log_file, "w") as f:
                         df.to_csv(f)
                 save_checkpoint({
-                    'epoch': epoch,
+                    'epoch': epoch + 1,
                     'model': model_type,
                     'hyper_set': str(args),
                     'state_dict': model.state_dict(),
@@ -488,6 +495,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         else:
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
         
+
         act_rate = 0.0
         loss_act_rate = 0.0
         # print(len(_masks))
@@ -498,8 +506,34 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         act_rate = torch.mean(act_rate/len(_masks))
         loss_act_rate = torch.mean(loss_act_rate/len(_masks))
         loss_act_rate = args.lambda_act * loss_act_rate
-        loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
+        if args.dynamic_rate:
+            loss = loss_cls + loss_act_rate
+        else:
+            loss = loss_cls + loss_act_rate if epoch >= args.optimize_rate_begin_epoch else loss_cls
         
+        # dist.all_reduce(acc1)
+        # acc1 /= args.world_size
+        # dist.all_reduce(acc5)
+        # acc5 /= args.world_size
+        # dist.all_reduce(loss)
+        # loss /= args.world_size
+        # dist.all_reduce(loss_cls)
+        # loss_cls /= args.world_size
+        # dist.all_reduce(loss_act_rate)
+        # loss_act_rate /= args.world_size
+        # dist.all_reduce(act_rate)
+        # act_rate /= args.world_size
+        if math.isnan(loss.item()):
+            optimizer.zero_grad()
+            continue
+        elif math.isnan(loss_act_rate.item()):
+            optimizer.zero_grad()
+            if args.use_amp:
+                with amp.scale_loss(loss_cls, optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss_cls.backward()
+            continue 
         act_rates.update(act_rate.item(), input.size(0))
         losses_act.update(loss_act_rate.item(),input.size(0))
         losses_cls.update(loss_cls.item(), input.size(0))
@@ -552,7 +586,7 @@ def adaptive_inferece(val_loader, model, criterion, args):
 
             ### Compute output single crop
             # output = model(input)
-            output, _masks, flops = model.module.forward_calc_flops(input, temperature=0.01, inference=False)
+            output, _masks, flops = model.module.forward_calc_flops(input, temperature=args.t_last, inference=False)
             # for i in range(len(_masks)):
             #     hhh = (_masks[i] > 0.99).float()
             #     print(hhh.shape, hhh.sum()/_masks[i].numel())
@@ -566,11 +600,21 @@ def adaptive_inferece(val_loader, model, criterion, args):
                 
             act_rate = torch.mean(act_rate/len(_masks))
             loss = loss_cls
-            
+            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
+
+            dist.all_reduce(acc1)
+            acc1 /= args.world_size
+            dist.all_reduce(acc5)
+            acc5 /= args.world_size
+            dist.all_reduce(loss)
+            loss /= args.world_size
+            dist.all_reduce(loss_cls)
+            loss_cls /= args.world_size
+            dist.all_reduce(act_rate)
+            act_rate /= args.world_size
+
             act_rates.update(act_rate.item(), input.size(0))
             losses_cls.update(loss_cls.item(), input.size(0))
-
-            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
             losses.update(loss.data.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             top5.update(acc5.item(), input.size(0))
@@ -622,19 +666,25 @@ def validate(val_loader, model, criterion, args, target_rate):
             loss_act_rate = torch.mean(loss_act_rate/len(_masks))
             loss_act_rate = args.lambda_act * loss_act_rate
             loss = loss_cls + loss_act_rate
-            
+            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
+
+            dist.all_reduce(acc1)
+            acc1 /= args.world_size
+            dist.all_reduce(acc5)
+            acc5 /= args.world_size
+            dist.all_reduce(loss)
+            loss /= args.world_size
+            dist.all_reduce(loss_cls)
+            loss_cls /= args.world_size
+            dist.all_reduce(loss_act_rate)
+            loss_act_rate /= args.world_size
+            dist.all_reduce(act_rate)
+            act_rate /= args.world_size
+
             act_rates.update(act_rate.item(), input.size(0))
             losses_act.update(loss_act_rate.item(),input.size(0))
             losses_cls.update(loss_cls.item(), input.size(0))
 
-            # Compute output ten crop
-            # bs, ncrops, c, h, w = input.size()
-            # output_ncrop = model(input.view(-1, c, h, w))
-            # output = output_ncrop.view(bs, ncrops, -1).mean(1)
-            # loss = criterion(output, target)
-
-            ### Measure accuracy and record loss
-            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
             losses.update(loss.data.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             top5.update(acc5.item(), input.size(0))
@@ -653,17 +703,31 @@ def validate(val_loader, model, criterion, args, target_rate):
 
 
 def adjust_gs_temperature(epoch, step, len_epoch, args):
-    alpha = math.pow(0.01/args.t0, 1/(args.epochs*len_epoch))
-    args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
+    T_total = args.epochs * len_epoch
+    T_cur = epoch * len_epoch + step
+    if args.temp_scheduler == 'exp':
+        alpha = math.pow(args.t_last/args.t0, 1/(args.epochs*len_epoch))
+        args.temp = math.pow(alpha, epoch*len_epoch+step)*args.t0
+    elif args.temp_scheduler == 'linear':
+        args.temp = (args.t0 - args.t_last) * (1 - T_cur / T_total) + args.t_last
+    else:
+        args.temp = 0.5 * (args.t0-args.t_last) * (1 + math.cos(math.pi * T_cur / T_total)) + args.t_last
 
 def adjust_target_rate(epoch, args):
     if not args.dynamic_rate:
         return args.target_rate
-        
-    if epoch < 45:
-        target_rate = 0.95
-    elif epoch < 75:
-        target_rate = (args.target_rate - 0.95) / 30 * (epoch - 44) + 0.95
+    # if epoch < args.epochs // 4:
+    #     target_rate = 1.0
+    # elif epoch < args.epochs // 2:
+    #     target_rate = 0.8
+    # elif epoch < args.epochs // 4 * 3:
+    #     target_rate = (args.target_rate-0.8) / (args.epochs//4) * (epoch - args.epochs // 2) + 0.8
+    # else:
+    #     target_rate = args.target_rate
+    # return target_rate
+
+    if epoch < args.optimize_rate_begin_epoch:
+        target_rate = 1.0
     else:
         target_rate = args.target_rate
     return target_rate

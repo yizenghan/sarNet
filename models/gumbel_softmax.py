@@ -42,7 +42,8 @@ class GumbleSoftmax(torch.nn.Module):
         gumble_samples_tensor = self.sample_gumbel_like(logits.data)
         gumble_trick_log_prob_samples = logits + Variable(gumble_samples_tensor)
         # print(logits.size())
-        soft_samples = F.softmax(gumble_trick_log_prob_samples / temperature, dim=1)
+        # print(temperature)
+        soft_samples = F.softmax(gumble_trick_log_prob_samples / temperature, dim=2)
         return soft_samples
     
     def gumbel_softmax(self, logits, temperature, hard=False):
@@ -58,14 +59,29 @@ class GumbleSoftmax(torch.nn.Module):
         """
         y = self.gumbel_softmax_sample(logits, temperature)
         if hard:
-            _, max_value_indexes = y.data.max(1, keepdim=True)
-            y_hard = logits.data.clone().zero_().scatter_(1, max_value_indexes, 1)
+            # print(y.data.shape)
+            # assert(0==1)
+            _, max_value_indexes = y.data.max(2, keepdim=True)
+            y_hard = logits.data.clone().zero_().scatter_(2, max_value_indexes, 1)
             y = Variable(y_hard - y.data) + y
         return y
         
     def forward(self, logits, temp=1, force_hard=False):
         samplesize = logits.size()
         if self.training and not force_hard:
-            return self.gumbel_softmax(logits, temperature=1, hard=False)
+            return self.gumbel_softmax(logits, temperature=temp, hard=False)
         else:
-            return self.gumbel_softmax(logits, temperature=1, hard=True) 
+            return self.gumbel_softmax(logits, temperature=temp, hard=True) 
+
+
+if __name__ == '__main__':
+    m = torch.rand((1,1,2,1,1))
+    print(m)
+    print(torch.exp(m[0,0,1,0,0])/torch.sum(torch.exp(m)))
+    gumbel_layer = GumbleSoftmax()
+    cnt = 0.0
+    for i in range(1000):
+        mm = gumbel_layer(m, temp=0.001, force_hard=True)
+        if(mm[0,0,1,0,0]==1):
+            cnt += 1
+    print(cnt/1000)

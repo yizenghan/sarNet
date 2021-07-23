@@ -7,15 +7,6 @@ import torchvision.transforms as transforms
 
 __all__ = ['sar_resnet_nomask']
 
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
-    """3x3 convolution with padding"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False, dilation=dilation)
-
-def conv1x1(in_planes, out_planes, stride=1,groups=1):
-    """1x1 convolution"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False,groups=groups)
-
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -115,7 +106,6 @@ class Bottleneck_refine(nn.Module):
         self.bn3 = nn.BatchNorm2d(planes)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
-        # print(self.downsample)
         self.stride = stride
         self.last_relu = last_relu
         self.patch_groups = patch_groups
@@ -182,9 +172,10 @@ class sarModule(nn.Module):
 
         self.base_module = self._make_layer(block_base, in_channels, out_channels, blocks - 1, 2, last_relu=False)
         self.refine_module = self._make_layer(block_refine, in_channels, out_channels // alpha, max(1, blocks // beta - 1), 1, last_relu=True)
+        
         self.little_e = nn.Sequential(
-            nn.Conv2d(out_channels // alpha, out_channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(out_channels)
+                nn.Conv2d(out_channels // alpha, out_channels, kernel_size=1, bias=False),
+                nn.BatchNorm2d(out_channels)
             )
         self.fusion = self._make_layer(block_base, out_channels, out_channels, 1, stride=stride)
 
@@ -426,7 +417,7 @@ if __name__ == "__main__":
     # print(sar_res)
     
     with torch.no_grad():
-        sar_res = sar_resnet_nomask(depth=50, patch_groups=1, width=1, alpha=1, beta=1)
+        sar_res = sar_resnet_nomask(depth=50, patch_groups=1, width=1, alpha=2, beta=1)
         cls_ops, cls_params = measure_model(sar_res, 224, 224)
         print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
         # print(model)

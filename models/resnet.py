@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 def params_count(model):
     return np.sum([p.numel() for p in model.parameters()]).item()
+
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
     'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
@@ -89,9 +90,10 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
         # print(params_count(self)/1e6)
+        print(inplanes, width, planes*self.expansion,groups, base_width)
     def forward(self, x):
         identity = x
-        print('input, ',x.shape)
+        # print('input, ',x.shape)
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
@@ -138,21 +140,21 @@ class ResNet(nn.Module):
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.layer1 = self._make_layer(block, 64, layers[0])
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
-        print(params_count(self)/1e6)
+        # print(params_count(self)/1e6)
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -201,13 +203,13 @@ class ResNet(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        print('before layer 1:', x.shape)
+        # print('before layer 1:', x.shape)
         x = self.layer1(x)
-        print('before layer 2:', x.shape)
+        # print('before layer 2:', x.shape)
         x = self.layer2(x)
-        print('before layer 3:', x.shape)
+        # print('before layer 3:', x.shape)
         x = self.layer3(x)
-        print('before layer 4:', x.shape)
+        # print('before layer 4:', x.shape)
         x = self.layer4(x)
 
         x = self.avgpool(x)
@@ -230,7 +232,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     return model
 
 
-def resnet18(args):
+def resnet18():
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -242,7 +244,7 @@ def resnet18(args):
 
 
 
-def resnet34(args):
+def resnet34():
     r"""ResNet-34 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -254,7 +256,7 @@ def resnet34(args):
 
 
 
-def resnet50(args):
+def resnet50():
     r"""ResNet-50 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -266,7 +268,7 @@ def resnet50(args):
 
 
 
-def resnet101(args):
+def resnet101():
     r"""ResNet-101 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -277,7 +279,7 @@ def resnet101(args):
     return _resnet('resnet101', Bottleneck, [3, 4, 23, 3], pretrained = False, progress=True)
 
 
-def resnet152(args):
+def resnet152():
     r"""ResNet-152 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -287,7 +289,7 @@ def resnet152(args):
     """
     return _resnet('resnet152', Bottleneck, [3, 8, 36, 3],pretrained = False, progress=True)
 
-def resnext50_16x4d(args):
+def resnext50_16x4d():
     r"""ResNeXt-50 32x4d model from
     `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
 
@@ -299,7 +301,7 @@ def resnext50_16x4d(args):
     # kwargs['width_per_group'] = 4
     return _resnet('resnext50_32x4d', Bottleneck, [3, 4, 6, 3], pretrained = False, progress=True,groups=16,width_per_group=4)
 
-def resnext50_24x4d(args):
+def resnext50_24x4d():
     r"""ResNeXt-50 32x4d model from
     `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
 
@@ -311,7 +313,7 @@ def resnext50_24x4d(args):
     # kwargs['width_per_group'] = 4
     return _resnet('resnext50_32x4d', Bottleneck, [3, 4, 6, 3], pretrained = False, progress=True,groups=24,width_per_group=4)
 
-def resnext50_32x4d(args):
+def resnext50_32x4d():
     r"""ResNeXt-50 32x4d model from
     `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
 
@@ -323,10 +325,10 @@ def resnext50_32x4d(args):
     # kwargs['width_per_group'] = 4
     return _resnet('resnext50_32x4d', Bottleneck, [3, 4, 6, 3], pretrained = False, progress=True,groups=32,width_per_group=4)
 
-def resnext101_32x4d(args):
+def resnext101_32x4d():
     return _resnet('resnext101_32x8d', Bottleneck, [3, 4, 23, 3],pretrained = False, progress=True,groups=32,width_per_group=4)
 
-def resnext101_32x8d(args):
+def resnext101_32x8d():
     r"""ResNeXt-101 32x8d model from
     `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
 
@@ -340,7 +342,7 @@ def resnext101_32x8d(args):
 
 
 
-def wide_resnet50_2(args):
+def wide_resnet50_2():
     r"""Wide ResNet-50-2 model from
     `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_
 
@@ -355,7 +357,7 @@ def wide_resnet50_2(args):
     """
     return _resnet('wide_resnet50_2', Bottleneck, [3, 4, 6, 3],pretrained = False, progress=True, width_per_group=64*2)
 
-def wide_resnet50_15(args):
+def wide_resnet50_15():
     r"""Wide ResNet-50-2 model from
     `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_
 
@@ -370,7 +372,7 @@ def wide_resnet50_15(args):
     """
     return _resnet('wide_resnet50_15', Bottleneck, [3, 4, 6, 3],pretrained = False, progress=True, width_per_group=64*1.5)
 
-def wide_resnet101_2(args):
+def wide_resnet101_2():
     r"""Wide ResNet-101-2 model from
     `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_
 
@@ -460,7 +462,7 @@ class CifarResNet(nn.Module):
         return x
 
 
-def resnet20(args,**kwargs):
+def resnet20(**kwargs):
     """Constructs a ResNet-18 model.
 
     """
@@ -468,7 +470,7 @@ def resnet20(args,**kwargs):
     return model
 
 
-def resnet32(args,**kwargs):
+def resnet32(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
@@ -476,35 +478,35 @@ def resnet32(args,**kwargs):
     return model
 
 
-def resnet56(args,**kwargs):
+def resnet56(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
     model = CifarResNet(CifarBasicBlock, n_size=9, width=1, num_classes=args.num_classes, **kwargs)
     return model
 
-def resnet110(args,**kwargs):
+def resnet110(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
     model = CifarResNet(CifarBasicBlock, n_size=18, width=1, num_classes=args.num_classes, **kwargs)
     return model
 
-def resnet164(args,**kwargs):
+def resnet164(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
     model = CifarResNet(CifarBasicBlock, n_size=18, width=1, num_classes=args.num_classes, **kwargs)
     return model
 
-def wide_resnet_16x4(args,**kwargs):
+def wide_resnet_16x4(**kwargs):
     """Constructs a ResNet-34 model.
 
     """
     model = CifarResNet(CifarBasicBlock, n_size=2, width=4, num_classes=args.num_classes, **kwargs)
     return model
 
-def wide_resnet_28x10(args,**kwargs):
+def wide_resnet_28x10(**kwargs):
     model = CifarResNet(block=CifarBasicBlock, n_size=4, width=10, num_classes=args.num_classes, **kwargs)
     return model
 
@@ -515,9 +517,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     args.num_classes = 1000
-    net = resnet101(args)
-    cls_ops, cls_params = measure_model(net, 224,224)
-    print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
+    with torch.no_grad():
+        net = resnext50_32x4d()
+        # assert(0==1)
+        # print(net)
+        
+        cls_ops, cls_params = measure_model(net, 224,224)
+        print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
 
     # import numpy as np
     # def params_count(model):

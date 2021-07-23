@@ -31,6 +31,12 @@ parser.add_argument('--warmup2', type=int, default=0)
 parser.add_argument('--width1', type=float, default=1.0)
 parser.add_argument('--width2', type=float, default=1.0)
 
+parser.add_argument('--alpha1', type=int, default=1)
+parser.add_argument('--alpha2', type=int, default=1)
+
+parser.add_argument('--beta1', type=int, default=1)
+parser.add_argument('--beta2', type=int, default=1)
+
 args = parser.parse_args()
 
 if args.use_amp1 > 0 or args.use_amp2 > 0:
@@ -141,8 +147,8 @@ class myThread(threading.Thread):
         os.system(cmd)
 
 
-config1 = f'_sarResNet50_mask1_g1_alpha2_beta2_blConfig'
-config2 = f'_sarResNet50_mask1_g1_alpha2_beta2_blConfig'
+config1 = f'_sarResNet50_mask1_g1_alpha{args.alpha1}_beta{args.beta1}_blConfig'
+config2 = f'_sarResNet50_mask1_g1_alpha{args.alpha2}_beta{args.beta2}_blConfig'
 
 if args.use_ls1:
     config1 += '_ls'

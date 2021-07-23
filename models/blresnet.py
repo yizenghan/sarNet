@@ -37,7 +37,7 @@ class Bottleneck(nn.Module):
         self.last_relu = last_relu
 
     def forward(self, x):
-        # print('x shape: ', x.shape)
+        
         residual = x
 
         out = self.conv1(x)
@@ -222,8 +222,21 @@ def blresnet_model(depth, alpha, beta, num_classes=1000, pretrained=False):
 
 if __name__ == '__main__':
     from op_counter import measure_model
-    blres = blresnet_model(depth=50,alpha=2,beta=2)
+    import time
+    import numpy as np
+    blres = blresnet_model(depth=50,alpha=4,beta=2)
+    def params_count(model):
+        return np.sum([p.numel() for p in model.parameters()]).item()
+    # num_params = params_count(blres)
+    # print(num_params / 1e6)
+    # assert(0==1)
     cls_ops, cls_params = measure_model(blres, 224, 224)
     print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
-    x = torch.rand(1,3,224,224)
-    y = blres(x)
+    # x = torch.rand(1,3,224,224).cuda(1)
+    # t_sim = []
+    # for i in range(100):
+    #     t1 = time.time()
+    #     y = blres(x)
+    #     t_sim.append(time.time() - t1)
+    # print('TIME sim: ', np.mean(t_sim)) 
+    # print(np.std(t_sim)) 
