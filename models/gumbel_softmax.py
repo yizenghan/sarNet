@@ -13,13 +13,6 @@ class GumbleSoftmax(torch.nn.Module):
     def __init__(self, hard=False):
         super(GumbleSoftmax, self).__init__()
         self.hard = hard
-    #     self.gpu = False
-        
-    # def cuda(self):
-    #     self.gpu = True
-    
-    # def cpu(self):
-    #     self.gpu = False
         
     def sample_gumbel(self, shape, eps=1e-10):
         """Sample from Gumbel(0, 1)"""

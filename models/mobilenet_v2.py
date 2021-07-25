@@ -64,16 +64,7 @@ class InvertedResidual(nn.Module):
         self.conv = nn.Sequential(*layers)
 
     def forward(self, x):
-        # print(x.shape)
-        # fig, a = plt.subplots(4,4)
-        # for i in range(4):
-        #     for j in range(4):
-        #         a[i,j].matshow(x[0,i*4+j].squeeze().cpu().numpy())
-        #         a[i,j].set_title('feature')
-
-        # plt.savefig(f'feature{x.shape[2]}.png')
-        # if x.shape[2] == 14:
-        #     assert(0==1)
+        print(x.shape)
         if self.use_res_connect:
             return x + self.conv(x)
         else:
@@ -189,6 +180,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     args.num_classes = 1000
-    net = mobilenet_v2_baseline(args)
+    net = mobilenet_v2_width10(args)
     cls_ops, cls_params = measure_model(net, 224,224)
     print(cls_params[-1]/1e6, cls_ops[-1]/1e9)

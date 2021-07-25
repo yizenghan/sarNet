@@ -416,9 +416,9 @@ def main_worker(gpu, ngpus_per_node, args):
         print(f'Epoch {epoch}, Target rate: {target_rate}')
         print(f'Temperature: {args.temp}')
        
-        # tr_acc1, tr_acc5, tr_loss, lr = \
-        #     train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
-        tr_acc1, tr_acc5, tr_loss, lr = 0,0,0,0
+        tr_acc1, tr_acc5, tr_loss, lr = \
+            train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
+        # tr_acc1, tr_acc5, tr_loss, lr = 0,0,0,0
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
             val_acc1, val_acc5, val_loss, val_rate, val_flops = validate(val_loader, model, criterion, args, target_rate)
@@ -595,7 +595,7 @@ def validate(val_loader, model, criterion, args, target_rate):
     batch_time = AverageMeter('Time', ':6.3f')
     losses_cls = AverageMeter('Loss_cls', ':.4e')
     losses_act = AverageMeter('loss_act', ':.4e')
-    FLOPs = AverageMeter('Activation rate', ':.2e')
+    FLOPs = AverageMeter('FLOPs', ':.2e')
     losses = AverageMeter('Loss', ':.4e')
     act_rates = AverageMeter('Activation rate', ':.2e')
     top1 = AverageMeter('Acc@1', ':6.2f')
