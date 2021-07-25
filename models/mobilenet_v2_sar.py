@@ -10,6 +10,36 @@ model_urls = {
     'mobilenet_v2': 'https://download.pytorch.org/models/mobilenet_v2-b0353104.pth',
 }
 
+class AttentionLayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(AttentionLayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.reduction = reduction
+        self.fc = nn.Sequential(
+            nn.Linear(channel, int(channel // reduction), bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(int(channel // reduction), channel, bias=False),
+            nn.Sigmoid()
+        )
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+
+    def forward(self, x):
+        b, c, h, w = x.size()
+        y = self.avg_pool(x).view(b,c)
+        attention = self.fc(y)
+        return attention.view(b,c,1,1)
+    
+    def forward_calc_flops(self, x):
+        b, c, h, w = x.size()
+        flops = c*h*w
+        # print('jjj')
+        y = self.avg_pool(x).view(b,c)
+        attention = self.fc(y)
+        flops += c*c//self.reduction*2 + c
+        return attention.view(b,c,1,1), flops
+
 
 def _make_divisible(v, divisor, min_value=None):
     """
@@ -413,6 +443,8 @@ class SARModule(nn.Module):
         self.beta = beta
         if beta != 1:
             self.convert_refine = ConvBNReLU(output_channel_refine, output_channel)
+            
+        self.att_gen = AttentionLayer(channel=output_channel, reduction=16) 
         
     def forward(self,x, temperature=1e-6):
         # print
@@ -429,9 +461,11 @@ class SARModule(nn.Module):
             x_base = self.convert_base(x_base)
         if self.beta != 1:
             x_refine= self.convert_refine(x_refine)
+        
+        att = self.att_gen(x_base)
         x_base = F.interpolate(x_base, scale_factor = 2)
         
-        return x_base + x_refine, _masks
+        return att*x_base + (1-att)*x_refine, _masks
     
     def forward_calc_flops(self, x, temperature=1e-6):
         flops = 0
@@ -453,8 +487,11 @@ class SARModule(nn.Module):
         if self.beta != 1:
             x_refine, _flops = self.convert_refine.forward_calc_flops(x_refine)
             flops += _flops
+        
+        att,_flops = self.att_gen.forward_calc_flops(x_base)
+        flops += _flops
         x_base = F.interpolate(x_base, scale_factor = 2)   
-        return x_base + x_refine, _masks, flops
+        return att*x_base + (1-att)*x_refine, _masks, flops
 
 
 class MobileNetV2(nn.Module):
