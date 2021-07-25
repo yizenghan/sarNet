@@ -618,7 +618,8 @@ class MobileNetV2(nn.Module):
                 nn.init.zeros_(m.bias)
             elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.zeros_(m.bias)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     # def _forward_impl(self, x):
     #     # This exists since TorchScript doesn't support inheritance, so the superclass method

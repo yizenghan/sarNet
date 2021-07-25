@@ -175,6 +175,8 @@ def main():
     if not args.train_on_cloud:
         if not os.path.exists(args.train_url):
             os.makedirs(args.train_url)
+    logger = Logger(args.train_url + 'screen_output.txt')
+    args.print_custom = logger.log
 
     assert args.dataset == 'imagenet'
     args.num_classes = 1000
@@ -230,12 +232,7 @@ def main_worker(gpu, ngpus_per_node, args):
     global val_act_rate
     args.gpu = gpu
     args.cfg = Config.fromfile(args.config)
-    
-    
-    
-    logger = Logger(args.save + '/screen_output.txt')
-    args.print_custom = logger.log
-    
+
     args.print_custom(args.cfg)
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
