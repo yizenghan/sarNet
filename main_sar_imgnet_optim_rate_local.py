@@ -148,7 +148,7 @@ if args.use_amp > 0:
         from apex.parallel import DistributedDataParallel as DDP
         from apex.parallel import convert_syncbn_model
         has_apex = True
-        print('successfully install apex')
+        args.print_custom('successfully install apex')
 
 best_acc1 = 0
 best_acc1_corresponding_acc5 = 0
@@ -230,11 +230,17 @@ def main_worker(gpu, ngpus_per_node, args):
     global val_act_rate
     args.gpu = gpu
     args.cfg = Config.fromfile(args.config)
-    print(args.cfg)
+    
+    
+    
+    logger = Logger(args.save + '/screen_output.txt')
+    args.print_custom = logger.log
+    
+    args.print_custom(args.cfg)
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
-    # print('Hyper-parameters:', str(args))
-    # print(args.batch_size)
+    # args.print_custom('Hyper-parameters:', str(args))
+    # args.print_custom(args.batch_size)
     # assert(0==1)
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
@@ -245,7 +251,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # assert(0==1)
     if args.gpu is not None:
-        print("Use GPU: {} for training".format(args.gpu))
+        args.print_custom("Use GPU: {} for training".format(args.gpu))
 
     if args.distributed:
         if args.dist_url == "env://" and args.rank == -1:
@@ -260,10 +266,10 @@ def main_worker(gpu, ngpus_per_node, args):
     ### Create model
     # model = pytorchmodels.resnet50(pretrained=False)
     model_type = args.arch_config
-    print(args.arch, args.arch_config)
+    args.print_custom(args.arch, args.arch_config)
     model = eval(f'models.{args.arch}.{args.arch_config}')(args)
 
-    # print('Model Struture:', str(model))
+    # args.print_custom('Model Struture:', str(model))
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
             f.write(str(model))
@@ -275,7 +281,7 @@ def main_worker(gpu, ngpus_per_node, args):
     rand_inp = torch.rand(1, 3, 224,224)
     _, _, args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
     args.full_flops /= 1e9
-    print(f'FULL FLOPs: {args.full_flops}')
+    args.print_custom(f'FULL FLOPs: {args.full_flops}')
 
     ### Optionally evaluate from a model
     if args.evaluate_from is not None:
@@ -333,7 +339,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # args.gpu = None
     if args.resume:
         if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
+            args.print_custom("=> loading checkpoint '{}'".format(args.resume))
             if args.gpu is None:
                 checkpoint = torch.load(args.resume)
             else:
@@ -365,17 +371,17 @@ def main_worker(gpu, ngpus_per_node, args):
             try:
                 epoch_log = checkpoint['epoch_log']
             except:
-                print('There is no epoch_log in checkpoint!')
-            print("=> loaded checkpoint '{}' (epoch {})"
+                args.print_custom('There is no epoch_log in checkpoint!')
+            args.print_custom("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            args.print_custom("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
 
     ### Data loading
-    print('Train data augmentaion:', get_transform(args, is_train_set=True))
-    print('Valid data augmentaion:', get_transform(args, is_train_set=False))
+    args.print_custom('Train data augmentaion:', get_transform(args, is_train_set=True))
+    args.print_custom('Valid data augmentaion:', get_transform(args, is_train_set=False))
 
     traindir = args.data_url + 'train/'
     valdir = args.data_url + 'val/'
@@ -413,8 +419,8 @@ def main_worker(gpu, ngpus_per_node, args):
             train_sampler.set_epoch(epoch)
         ### Train for one epoch
         target_rate = adjust_target_rate(epoch, args)
-        print(f'Epoch {epoch}, Target rate: {target_rate}')
-        print(f'Temperature: {args.temp}')
+        args.print_custom(f'Epoch {epoch}, Target rate: {target_rate}')
+        args.print_custom(f'Temperature: {args.temp}')
        
         tr_acc1, tr_acc5, tr_loss, lr = \
             train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
@@ -477,11 +483,11 @@ def main_worker(gpu, ngpus_per_node, args):
                 }, args, is_best, filename=ckpt_name)
 
         epoch_time.update(time.time() - start_time, 1)
-        print('Duration: %4f H, Left Time: %4f H' % (
+        args.print_custom('Duration: %4f H, Left Time: %4f H' % (
             epoch_time.sum / 3600, epoch_time.avg * (args.epochs - epoch - 1) / 3600))
         start_time = time.time()
 
-    print(' * Best Acc@1 {best_acc1:.3f} Acc@5 {best_acc1_corresponding_acc5:.3f}'
+    args.print_custom(' * Best Acc@1 {best_acc1:.3f} Acc@5 {best_acc1_corresponding_acc5:.3f}'
           .format(best_acc1=best_acc1, best_acc1_corresponding_acc5=best_acc1_corresponding_acc5))
     return
 
@@ -545,7 +551,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
             
         act_rate = torch.mean(act_rate / len(_masks))
         loss_act = args.lambda_act * torch.mean(loss_act/len(_masks))
-        # print(target_rate, act_rate, args.lambda_act, loss_act)
+        # args.print_custom(target_rate, act_rate, args.lambda_act, loss_act)
         if args.dynamic_rate > 0:
             loss = loss_cls + loss_act
         else:
@@ -586,8 +592,8 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
 
         if i % args.print_freq == 0:
             train_progress.display(i)
-            print('LR: %6.4f' % (lr))
-            # print('FLOPs: %6.4f' % (flops))
+            args.print_custom('LR: %6.4f' % (lr))
+            # args.print_custom('FLOPs: %6.4f' % (flops))
 
     return top1.avg, top5.avg, losses.avg, lr
 
@@ -671,7 +677,7 @@ def validate(val_loader, model, criterion, args, target_rate):
             if i % 10 == 0:
                 progress.display(i)
 
-    print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+    args.print_custom(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
     return top1.avg, top5.avg, losses.avg, act_rates.avg, FLOPs.avg
@@ -715,6 +721,18 @@ def adjust_target_rate(epoch, args):
         else:
             target_rate = args.target_rate
     return target_rate
+
+
+class Logger(object):
+    def __init__(self, filename):
+        self.filename = filename
+        with open(self.filename, 'w') as f:
+            f.write('=============================='+'\n')
+    def log(self, string, isprint=True):
+        if isprint:
+            print(string)
+        with open(self.filename, 'a') as f:
+            f.write(str(string)+'\n')
 
 if __name__ == '__main__':
     main()
