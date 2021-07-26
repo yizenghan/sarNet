@@ -392,13 +392,13 @@ class Bottleneck_refine(nn.Module):
 
                 out = F.conv2d(patch, weight_g, padding=0)
 
-                rm = self.bn1.running_mean[i * c_out_g:(i + 1) * c_out_g]
-                rv = self.bn1.running_var[i * c_out_g:(i + 1) * c_out_g]
-                w_bn = self.bn1.weight[i * c_out_g:(i + 1) * c_out_g]
-                b_bn = self.bn1.bias[i * c_out_g:(i + 1) * c_out_g]
+                # rm = self.bn1.running_mean[i * c_out_g:(i + 1) * c_out_g]
+                # rv = self.bn1.running_var[i * c_out_g:(i + 1) * c_out_g]
+                # w_bn = self.bn1.weight[i * c_out_g:(i + 1) * c_out_g]
+                # b_bn = self.bn1.bias[i * c_out_g:(i + 1) * c_out_g]
 
-                out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
-                                   momentum=0.1, eps=1e-05)
+                # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
+                #                    momentum=0.1, eps=1e-05)
                 # out = self.bn1(out)
                 out = self.relu(out)
 
@@ -408,13 +408,13 @@ class Bottleneck_refine(nn.Module):
 
                 out = F.conv2d(out, weight_g, padding=0)
 
-                rm = self.bn2.running_mean[i * c_out_g:(i + 1) * c_out_g]
-                rv = self.bn2.running_var[i * c_out_g:(i + 1) * c_out_g]
-                w_bn = self.bn2.weight[i * c_out_g:(i + 1) * c_out_g]
-                b_bn = self.bn2.bias[i * c_out_g:(i + 1) * c_out_g]
+                # rm = self.bn2.running_mean[i * c_out_g:(i + 1) * c_out_g]
+                # rv = self.bn2.running_var[i * c_out_g:(i + 1) * c_out_g]
+                # w_bn = self.bn2.weight[i * c_out_g:(i + 1) * c_out_g]
+                # b_bn = self.bn2.bias[i * c_out_g:(i + 1) * c_out_g]
 
-                out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
-                                   momentum=0.1, eps=1e-05)
+                # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
+                #                    momentum=0.1, eps=1e-05)
                 out = self.relu(out)
 
                 weight = self.conv3.weight
@@ -423,13 +423,13 @@ class Bottleneck_refine(nn.Module):
 
                 out = F.conv2d(out, weight_g, padding=0)
 
-                rm = self.bn3.running_mean[i * c_out_g:(i + 1) * c_out_g]
-                rv = self.bn3.running_var[i * c_out_g:(i + 1) * c_out_g]
-                w_bn = self.bn3.weight[i * c_out_g:(i + 1) * c_out_g]
-                b_bn = self.bn3.bias[i * c_out_g:(i + 1) * c_out_g]
+                # rm = self.bn3.running_mean[i * c_out_g:(i + 1) * c_out_g]
+                # rv = self.bn3.running_var[i * c_out_g:(i + 1) * c_out_g]
+                # w_bn = self.bn3.weight[i * c_out_g:(i + 1) * c_out_g]
+                # b_bn = self.bn3.bias[i * c_out_g:(i + 1) * c_out_g]
 
-                out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
-                                   momentum=0.1, eps=1e-05)
+                # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
+                #                    momentum=0.1, eps=1e-05)
 
                 br,cr,hr,wr = residual.shape
                 # x0 = torch.zeros(br,cr//g,hr,wr)
@@ -974,7 +974,8 @@ if __name__ == "__main__":
         # print(sar_res)
         x = torch.rand(1, 3, 224, 224)
         sar_res.eval()
-
+        from conv_bn_fuse import fuse_module
+        fuse_module(sar_res)
         b=[]
         g=[]
 

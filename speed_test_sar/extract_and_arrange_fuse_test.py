@@ -6,12 +6,15 @@ from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
+from conv_bn_fuse import fuse_module
 
 time_calc = []
 time_extract = []
 time_rearrange = []
 time_conv = []
 time_forward = []
+
+
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -377,8 +380,10 @@ class Bottleneck_refine(nn.Module):
                 mask1 = mask.clone()
             mask1 = F.interpolate(mask1, size=(h, w))
             # print(mask1.shape, x.shape)
+            # print(mask1.shape, x.shape)
+            # assert(0==1)
             out = x * mask1
-
+            # out = torch.where(mask1>0, x, torch.tensor(0.0))
             # t3 = time.time()
             x_ = _extract_from_mask(out, mask)
             # t4 = time.time()
@@ -394,21 +399,21 @@ class Bottleneck_refine(nn.Module):
 
                 if mask[0, i, :, :].sum() == 0:
                     continue
-                weight = self.conv1.weight
                 # print(self.conv1.out_channels)
                 # print(weight.size())
                 # print(self.patch_groups, x_[pp].shape)
+                weight = self.conv1.weight
                 weight_g = weight[i * c_out_g:(i + 1) * c_out_g, :, :, :]
 
                 out = F.conv2d(x_[pp], weight_g, padding=0)
 
-                rm = self.bn1.running_mean[i * c_out_g:(i + 1) * c_out_g]
-                rv = self.bn1.running_var[i * c_out_g:(i + 1) * c_out_g]
-                w_bn = self.bn1.weight[i * c_out_g:(i + 1) * c_out_g]
-                b_bn = self.bn1.bias[i * c_out_g:(i + 1) * c_out_g]
+                # rm = self.bn1.running_mean[i * c_out_g:(i + 1) * c_out_g]
+                # rv = self.bn1.running_var[i * c_out_g:(i + 1) * c_out_g]
+                # w_bn = self.bn1.weight[i * c_out_g:(i + 1) * c_out_g]
+                # b_bn = self.bn1.bias[i * c_out_g:(i + 1) * c_out_g]
 
-                out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
-                                   momentum=0.1, eps=1e-05)
+                # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
+                #                    momentum=0.1, eps=1e-05)
                 # out = self.bn1(out)
                 out = self.relu(out)
 
@@ -418,13 +423,13 @@ class Bottleneck_refine(nn.Module):
 
                 out = F.conv2d(out, weight_g, padding=0)
 
-                rm = self.bn2.running_mean[i * c_out_g:(i + 1) * c_out_g]
-                rv = self.bn2.running_var[i * c_out_g:(i + 1) * c_out_g]
-                w_bn = self.bn2.weight[i * c_out_g:(i + 1) * c_out_g]
-                b_bn = self.bn2.bias[i * c_out_g:(i + 1) * c_out_g]
+                # rm = self.bn2.running_mean[i * c_out_g:(i + 1) * c_out_g]
+                # rv = self.bn2.running_var[i * c_out_g:(i + 1) * c_out_g]
+                # w_bn = self.bn2.weight[i * c_out_g:(i + 1) * c_out_g]
+                # b_bn = self.bn2.bias[i * c_out_g:(i + 1) * c_out_g]
 
-                out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
-                                   momentum=0.1, eps=1e-05)
+                # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
+                #                    momentum=0.1, eps=1e-05)
                 out = self.relu(out)
 
                 weight = self.conv3.weight
@@ -433,13 +438,13 @@ class Bottleneck_refine(nn.Module):
 
                 out = F.conv2d(out, weight_g, padding=0)
 
-                rm = self.bn3.running_mean[i * c_out_g:(i + 1) * c_out_g]
-                rv = self.bn3.running_var[i * c_out_g:(i + 1) * c_out_g]
-                w_bn = self.bn3.weight[i * c_out_g:(i + 1) * c_out_g]
-                b_bn = self.bn3.bias[i * c_out_g:(i + 1) * c_out_g]
+                # rm = self.bn3.running_mean[i * c_out_g:(i + 1) * c_out_g]
+                # rv = self.bn3.running_var[i * c_out_g:(i + 1) * c_out_g]
+                # w_bn = self.bn3.weight[i * c_out_g:(i + 1) * c_out_g]
+                # b_bn = self.bn3.bias[i * c_out_g:(i + 1) * c_out_g]
 
-                out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
-                                   momentum=0.1, eps=1e-05)
+                # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
+                #                    momentum=0.1, eps=1e-05)
                 outs.append(out)
 
                 pp += 1
@@ -654,65 +659,70 @@ class sarModule(nn.Module):
         _masks = []
         x_refine = x
         # refine_ls = []
+        global_mask = torch.zeros((1, self.patch_groups, self.mask_size, self.mask_size))
+        n = int(self.patch_groups / 2)
+
+        # global_mask[:, :, :, :] = 1.0
+        # ### g2 r0.7
+        # if len(self.base_module) == 5:
+        #     global_mask[:, :, :, :1] = 1.0
+        #     global_mask[:, n - 1:n, :, :] = 1.0
+        # else:
+        #     global_mask[:, :, :5, :] = 1.0
+        ### g2 r0.6
+        # if len(self.base_module)==5:
+        #     global_mask[:,:,:1,:]=1.0
+        #     global_mask[:,n:n+1,1:,1:]=1.0
+        # else:
+        #     global_mask[:,:,:4,:]=1.0
+        ### g2 r0.4
+        # if len(self.base_module)==5:
+        #     global_mask[:,:,:1,:1]=1.0
+        #     global_mask[:,n-1:n,:1,0:]=1.0
+        # else:
+        #     global_mask[:,:,:3,:]=1.0
+        ## g2g4 r0.5
+        # if len(self.base_module) == 5:
+        #     global_mask[:, :, :, :1] = 1.0
+        # else:
+        #     global_mask[:, :n, :3, :] = 1.0
+        #     global_mask[:, n:, 3:, :] = 1.0
+        if self.patch_groups==2:
+            global_mask[:,0,::2,::2] = 1.0
+            global_mask[:,0,1::2,1::2] = 1.0
+            global_mask[:,1,::2,::2] = 1.0
+            global_mask[:,1,1::2,1::2] = 1.0
+        else:
+            global_mask[:,0,::2,::2] = 1.0
+            global_mask[:,0,1::2,1::2] = 1.0
+        ### g4 r0.7
+        # if len(self.base_module) == 5:
+        #     global_mask[:, :, :, :1] = 1.0
+        #     global_mask[:, n - 2:n + 1, 1:, 1:] = 1.0
+        # else:
+        #     global_mask[:, :, :5, :] = 1.0
+        ### g4 r0.6
+        # if len(self.base_module) == 5:
+        #     global_mask[:, :, :1, :] = 1.0
+        #     global_mask[:, n - 1:n + 1, 1:, 1:] = 1.0
+        # else:
+        #     global_mask[:, :, :4, :] = 1.0
+        ### g4 r0.4
+        # if len(self.base_module)==5:
+        #     global_mask[:,:,:1,:1]=1.0
+        #     global_mask[:,n-1:n+1,:1,0:]=1.0
+        # else:
+        #     global_mask[:,:,:3,:]=1.0
+
+
+        # ratio = global_mask.sum() / global_mask.numel()
+        # print('ratio:', ratio)
         for i in range(len(self.base_module)):
             x_base = self.base_module[i](x_base) if i != 0 else self.base_module[i](x)
-            if not inference:
-                mask = self.mask_gen[i](x_base, temperature=temperature)
-            # else:
-            mask = torch.zeros((1, self.patch_groups, self.mask_size, self.mask_size))
-            # n = int(self.patch_groups / 2)
+            # if not inference:
+            mask = self.mask_gen[i](x_base, temperature=temperature)
 
-            # mask[:, :, :, :] = 1.0
-            # ### g2 r0.7
-            # if len(self.base_module) == 5:
-            #     mask[:, :, :, :1] = 1.0
-            #     mask[:, n - 1:n, :, :] = 1.0
-            # else:
-            #     mask[:, :, :5, :] = 1.0
-            ### g2 r0.6
-            # if len(self.base_module)==5:
-            #     mask[:,:,:1,:]=1.0
-            #     mask[:,n:n+1,1:,1:]=1.0
-            # else:
-            #     mask[:,:,:4,:]=1.0
-            ### g2 r0.4
-            # if len(self.base_module)==5:
-            #     mask[:,:,:1,:1]=1.0
-            #     mask[:,n-1:n,:1,0:]=1.0
-            # else:
-            #     mask[:,:,:3,:]=1.0
-            ## g2g4 r0.5
-            # if len(self.base_module) == 5:
-            #     mask[:, :, :, :1] = 1.0
-            # else:
-            #     mask[:, :n, :3, :] = 1.0
-            #     mask[:, n:, 3:, :] = 1.0
-            mask[:,0,::2,::2] = 1.0
-            mask[:,0,1::2,1::2] = 1.0
-            # print(mask)
-            # assert(0==1)
-            ### g4 r0.7
-            # if len(self.base_module) == 5:
-            #     mask[:, :, :, :1] = 1.0
-            #     mask[:, n - 2:n + 1, 1:, 1:] = 1.0
-            # else:
-            #     mask[:, :, :5, :] = 1.0
-            ### g4 r0.6
-            # if len(self.base_module) == 5:
-            #     mask[:, :, :1, :] = 1.0
-            #     mask[:, n - 1:n + 1, 1:, 1:] = 1.0
-            # else:
-            #     mask[:, :, :4, :] = 1.0
-            ### g4 r0.4
-            # if len(self.base_module)==5:
-            #     mask[:,:,:1,:1]=1.0
-            #     mask[:,n-1:n+1,:1,0:]=1.0
-            # else:
-            #     mask[:,:,:3,:]=1.0
-
-
-            # ratio = mask.sum() / mask.numel()
-            # print('ratio:', ratio)
+            mask = global_mask
             _masks.append(mask)
             x_refine = self.refine_module[i](x_refine, mask, inference=inference)
             # refine_ls.append(x_refine)
@@ -732,11 +742,72 @@ class sarModule(nn.Module):
         _masks = []
         x_refine = x
         # refine_ls = []
+        global_mask = torch.zeros((1, self.patch_groups, self.mask_size, self.mask_size))
+        n = int(self.patch_groups / 2)
+
+        # global_mask[:, :, :, :] = 1.0
+        # ### g2 r0.7
+        # if len(self.base_module) == 5:
+        #     global_mask[:, :, :, :1] = 1.0
+        #     global_mask[:, n - 1:n, :, :] = 1.0
+        # else:
+        #     global_mask[:, :, :5, :] = 1.0
+        ### g2 r0.6
+        # if len(self.base_module)==5:
+        #     global_mask[:,:,:1,:]=1.0
+        #     global_mask[:,n:n+1,1:,1:]=1.0
+        # else:
+        #     global_mask[:,:,:4,:]=1.0
+        ### g2 r0.4
+        # if len(self.base_module)==5:
+        #     global_mask[:,:,:1,:1]=1.0
+        #     global_mask[:,n-1:n,:1,0:]=1.0
+        # else:
+        #     global_mask[:,:,:3,:]=1.0
+        ## g2g4 r0.5
+        # if len(self.base_module) == 5:
+        #     global_mask[:, :, :, :1] = 1.0
+        # else:
+        #     global_mask[:, :n, :3, :] = 1.0
+        #     global_mask[:, n:, 3:, :] = 1.0
+        if self.patch_groups==2:
+            global_mask[:,0,::2,::2] = 1.0
+            global_mask[:,0,1::2,1::2] = 1.0
+            global_mask[:,1,::2,::2] = 1.0
+            global_mask[:,1,1::2,1::2] = 1.0
+        else:
+            global_mask[:,0,::2,::2] = 1.0
+            global_mask[:,0,1::2,1::2] = 1.0
+        # print(global_mask)
+        # assert(0==1)
+        ### g4 r0.7
+        # if len(self.base_module) == 5:
+        #     global_mask[:, :, :, :1] = 1.0
+        #     global_mask[:, n - 2:n + 1, 1:, 1:] = 1.0
+        # else:
+        #     global_mask[:, :, :5, :] = 1.0
+        ### g4 r0.6
+        # if len(self.base_module) == 5:
+        #     global_mask[:, :, :1, :] = 1.0
+        #     global_mask[:, n - 1:n + 1, 1:, 1:] = 1.0
+        # else:
+        #     global_mask[:, :, :4, :] = 1.0
+        ### g4 r0.4
+        # if len(self.base_module)==5:
+        #     global_mask[:,:,:1,:1]=1.0
+        #     global_mask[:,n-1:n+1,:1,0:]=1.0
+        # else:
+        #     global_mask[:,:,:3,:]=1.0
+
+
+        # ratio = mask.sum() / mask.numel()
+        # print('ratio:', ratio)
         for i in range(len(self.base_module)):
             x_base, _flops = self.base_module[i].forward_calc_flops(x_base) if i != 0 else self.base_module[
                 i].forward_calc_flops(x)
             flops += _flops
             mask, _flops = self.mask_gen[i].forward_calc_flops(x_base, temperature=temperature)
+            mask = global_mask
             # mask = torch.zeros((1, self.patch_groups, self.mask_size, self.mask_size))
             # n = int(self.patch_groups / 2)
 
@@ -1085,7 +1156,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
-    args.patch_groups = 1
+    args.patch_groups = 2
     args.mask_size = 7
     args.alpha = 2
     args.beta = 1
@@ -1093,7 +1164,10 @@ if __name__ == "__main__":
     sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
     # sar_res = sar_res.cuda(0)
     # print(sar_res)
+    # assert(0==1)
     sar_res.eval()
+    fuse_module(sar_res)
+    print(sar_res)
     with torch.no_grad():
         # print(sar_res)
         x = torch.rand(1, 3, 224, 224)
@@ -1113,15 +1187,15 @@ if __name__ == "__main__":
 
         y, mask, flops = sar_res.forward_calc_flops(x, inference=False, temperature=1e-8)
         print(flops/1e9)
-        for i in range(100):
-            t = time.time()
-            y1, _masks = sar_res(x, inference=False, temperature=1e-8)
-            tttt = time.time()
-            # a.append(np.sum(time_calc))
-            # time_calc = []
-            if i >= 15:
-                b.append((tttt - t) * 1000)
-                print((tttt - t) * 1000)
+        # for i in range(100):
+        #     t = time.time()
+        #     y1, _masks = sar_res(x, inference=False, temperature=1e-8)
+        #     tttt = time.time()
+        #     # a.append(np.sum(time_calc))
+        #     # time_calc = []
+        #     if i >= 15:
+        #         b.append((tttt - t) * 1000)
+        #         print((tttt - t) * 1000)
 
 
         for i in range(100):
