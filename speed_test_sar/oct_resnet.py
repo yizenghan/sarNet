@@ -378,6 +378,7 @@ if __name__ == '__main__':
     import argparse
     import numpy as np
     import time
+    torch.set_num_threads(1)
     parser = argparse.ArgumentParser(description='PyTorch resnet Training')
     args = parser.parse_args()
     args.num_classes = 1000

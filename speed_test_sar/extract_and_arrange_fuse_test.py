@@ -393,19 +393,22 @@ class Bottleneck_refine(nn.Module):
 
             outs = []
             pp = 0
-
+            # print(len(x_))
+            # assert(0==1)
+            c_out_g1 = self.conv1.out_channels // g
+            c_out_g2 = self.conv2.out_channels // g
+            c_out_g3 = self.conv3.out_channels // g
             for i in range(g):
-                c_out_g = self.conv1.out_channels // g
-
                 if mask[0, i, :, :].sum() == 0:
                     continue
                 # print(self.conv1.out_channels)
                 # print(weight.size())
                 # print(self.patch_groups, x_[pp].shape)
-                weight = self.conv1.weight
-                weight_g = weight[i * c_out_g:(i + 1) * c_out_g, :, :, :]
+                out = calc_one_group(x_[i],i, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
+                # weight = self.conv1.weight
+                # weight_g = weight[i * c_out_g1:(i + 1) * c_out_g1, :, :, :]
 
-                out = F.conv2d(x_[pp], weight_g, padding=0)
+                # out = F.conv2d(x_[i], weight_g, padding=0)
 
                 # rm = self.bn1.running_mean[i * c_out_g:(i + 1) * c_out_g]
                 # rv = self.bn1.running_var[i * c_out_g:(i + 1) * c_out_g]
@@ -415,13 +418,13 @@ class Bottleneck_refine(nn.Module):
                 # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
                 #                    momentum=0.1, eps=1e-05)
                 # out = self.bn1(out)
-                out = self.relu(out)
+                # out = self.relu(out)
 
-                weight = self.conv2.weight
-                c_out_g = self.conv2.out_channels // g
-                weight_g = weight[i * c_out_g:(i + 1) * c_out_g, :, :, :]
+                # weight = self.conv2.weight
+                # # c_out_g = self.conv2.out_channels // g
+                # weight_g = weight[i * c_out_g2:(i + 1) * c_out_g2, :, :, :]
 
-                out = F.conv2d(out, weight_g, padding=0)
+                # out = F.conv2d(out, weight_g, padding=0)
 
                 # rm = self.bn2.running_mean[i * c_out_g:(i + 1) * c_out_g]
                 # rv = self.bn2.running_var[i * c_out_g:(i + 1) * c_out_g]
@@ -430,13 +433,13 @@ class Bottleneck_refine(nn.Module):
 
                 # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
                 #                    momentum=0.1, eps=1e-05)
-                out = self.relu(out)
+                # out = self.relu(out)
 
-                weight = self.conv3.weight
-                c_out_g = self.conv3.out_channels // g
-                weight_g = weight[i * c_out_g:(i + 1) * c_out_g, :, :, :]
+                # weight = self.conv3.weight
+                # # c_out_g = self.conv3.out_channels // g
+                # weight_g = weight[i * c_out_g3:(i + 1) * c_out_g3, :, :, :]
 
-                out = F.conv2d(out, weight_g, padding=0)
+                # out = F.conv2d(out, weight_g, padding=0)
 
                 # rm = self.bn3.running_mean[i * c_out_g:(i + 1) * c_out_g]
                 # rv = self.bn3.running_var[i * c_out_g:(i + 1) * c_out_g]
@@ -446,8 +449,6 @@ class Bottleneck_refine(nn.Module):
                 # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
                 #                    momentum=0.1, eps=1e-05)
                 outs.append(out)
-
-                pp += 1
 
             # t5 = time.time()
             # t_conv = t5 - t4
@@ -1118,6 +1119,16 @@ def _rearrange_features(feat, mask, residual):
 
     return residual
 
+def calc_one_group(x,i,conv1,conv2,conv3,c_out_g1,c_out_g2,c_out_g3,relu):
+    out = F.conv2d(x, conv1.weight[i * c_out_g1:(i + 1) * c_out_g1, :, :, :], padding=0)
+    out = relu(out)
+
+    out = F.conv2d(out, conv2.weight[i * c_out_g2:(i + 1) * c_out_g2, :, :, :], padding=0)
+    out = relu(out)
+
+    out = F.conv2d(out, conv3.weight[i * c_out_g3:(i + 1) * c_out_g3, :, :, :], padding=0)
+    # out = relu(out)
+    return out
 
 def sar_resnet_imgnet_alphaBase(depth, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1, beta=1,
                                 base_scale=2):
@@ -1152,7 +1163,7 @@ if __name__ == "__main__":
     # from op_counter import measure_model
     import time
     import numpy as np
-
+    torch.set_num_threads(1)
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
@@ -1187,15 +1198,15 @@ if __name__ == "__main__":
 
         y, mask, flops = sar_res.forward_calc_flops(x, inference=False, temperature=1e-8)
         print(flops/1e9)
-        # for i in range(100):
-        #     t = time.time()
-        #     y1, _masks = sar_res(x, inference=False, temperature=1e-8)
-        #     tttt = time.time()
-        #     # a.append(np.sum(time_calc))
-        #     # time_calc = []
-        #     if i >= 15:
-        #         b.append((tttt - t) * 1000)
-        #         print((tttt - t) * 1000)
+        for i in range(100):
+            t = time.time()
+            y1, _masks = sar_res(x, inference=False, temperature=1e-8)
+            tttt = time.time()
+            # a.append(np.sum(time_calc))
+            # time_calc = []
+            if i >= 15:
+                b.append((tttt - t) * 1000)
+                print((tttt - t) * 1000)
 
 
         for i in range(100):
