@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
-
+from threading import Thread
 from conv_bn_fuse import fuse_module
 
 time_calc = []
@@ -14,7 +14,20 @@ time_rearrange = []
 time_conv = []
 time_forward = []
 
+class MyThread(Thread):
+    def __init__(self, func, args):
+        super(MyThread, self).__init__()
+        self.func = func
+        self.args = args
 
+    def run(self):
+        self.result = self.func(*self.args)
+
+    def get_result(self):
+        try:
+            return self.result
+        except Exception:
+            return None
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -398,13 +411,16 @@ class Bottleneck_refine(nn.Module):
             c_out_g1 = self.conv1.out_channels // g
             c_out_g2 = self.conv2.out_channels // g
             c_out_g3 = self.conv3.out_channels // g
+            t = list()
             for i in range(g):
                 if mask[0, i, :, :].sum() == 0:
                     continue
                 # print(self.conv1.out_channels)
                 # print(weight.size())
                 # print(self.patch_groups, x_[pp].shape)
+                # t.append(MyThread(calc_one_group, args=(x_[i],i, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)))
                 out = calc_one_group(x_[i],i, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
+                outs.append(out)
                 # weight = self.conv1.weight
                 # weight_g = weight[i * c_out_g1:(i + 1) * c_out_g1, :, :, :]
 
@@ -448,7 +464,8 @@ class Bottleneck_refine(nn.Module):
 
                 # out = F.batch_norm(out, running_mean=rm, running_var=rv, weight=w_bn, bias=b_bn, training=self.training,
                 #                    momentum=0.1, eps=1e-05)
-                outs.append(out)
+
+                # outs.append(t[i].get_result())
 
             # t5 = time.time()
             # t_conv = t5 - t4
@@ -1163,7 +1180,7 @@ if __name__ == "__main__":
     # from op_counter import measure_model
     import time
     import numpy as np
-    torch.set_num_threads(1)
+    # torch.set_num_threads(1)
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
