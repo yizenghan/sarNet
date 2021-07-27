@@ -471,14 +471,14 @@ class Bottleneck_refine(nn.Module):
             # t_conv = t5 - t4
             # print('conv_time is:', t_conv*1000)
             # time_conv.append(t_conv*1000)
-            outs = _rearrange_features(outs, mask, residual)
-            # outs = _rearrange_features(outs, mask)
+            # outs = _rearrange_features(outs, mask, residual)
+            outs = _rearrange_features(outs, mask)
             # t6 = time.time()
             # t_rearrange = t6 - t5
             # print('rearrange_time is:', t_rearrange*1000)
             # time_rearrange.append(t_rearrange*1000)
 
-            # outs+=residual
+            outs += residual
             if self.last_relu:
                 outs = self.relu(outs)
             # t7 = time.time()
@@ -1091,7 +1091,7 @@ def _extract_from_mask(x, mask):
     return feats
 
 
-def _rearrange_features(feat, mask, residual):
+def _rearrange_features(feat, mask):
     t1 = time.time()
     b, c_f, h_f, w_f = feat[0].size()
     _, c, h, w = mask.size()
@@ -1105,36 +1105,81 @@ def _rearrange_features(feat, mask, residual):
     kk = 0
     pp = 0
 
-    a = np.flatnonzero(mask[0])
-    # a = torch.nonzero(torch.flatten(mask[0, :, :, :])).squeeze()
+    a = np.flatnonzero(mask[0, :, :, :])
     l = a.shape[0]
-    # t2 = time.time()
-    # t21.append((t2 - t1) * 1000)
+    t2 = time.time()
+    t21.append((t2 - t1) * 1000)
+    x = torch.zeros(1, c*c_f, h*h_f, w*w_f)
     for n in range(l):
-        # t3 = time.time()
+        t3 = time.time()
         k = a[n] // (h*w)
         if kk != k and n != 0:
             # if q >= mask[0, k, :, :].sum():
             q = 0
             pp += 1
-        # t4 = time.time()
-        # t43.append((t4 - t3) * 1000)
+        t4 = time.time()
+        t43.append((t4 - t3) * 1000)
         p = a[n] % (h*w)
         i = p // w
         j = p % h
         h_1 = i * h_interval
         w_1 = j * w_interval
-        # t5 = time.time()
-        # t54.append((t5 - t4) * 1000)
-        residual[0, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval, w_1:w_1 + w_interval] += feat[pp][q] # + residual[:, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval, w_1:w_1 + w_interval]
-        # t6 = time.time()
-        # t65.append((t6 - t5) * 1000)
+        t5 = time.time()
+        t54.append((t5 - t4) * 1000)
+        t5 = time.time()
+        x[0, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval, w_1:w_1 + w_interval] = feat[pp][q] # + residual[:, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval, w_1:w_1 + w_interval]
+        t6 = time.time()
+        t65.append((t6 - t5) * 1000)
         q += 1
         kk = k
-        # t7 = time.time()
-        # t76.append((t7 - t6) * 1000)
+        t7 = time.time()
+        t76.append((t7 - t6) * 1000)
 
-    return residual
+    return x
+# def _rearrange_features(feat, mask, residual):
+#     t1 = time.time()
+#     b, c_f, h_f, w_f = feat[0].size()
+#     _, c, h, w = mask.size()
+
+#     h_interval = h_f
+#     w_interval = w_f
+#     c_interval = c_f
+#     # x = torch.zeros(1, c * c_f, h * h_f, w * w_f)
+
+#     q = 0
+#     kk = 0
+#     pp = 0
+
+#     a = np.flatnonzero(mask[0])
+#     # a = torch.nonzero(torch.flatten(mask[0, :, :, :])).squeeze()
+#     l = a.shape[0]
+#     # t2 = time.time()
+#     # t21.append((t2 - t1) * 1000)
+#     for n in range(l):
+#         # t3 = time.time()
+#         k = a[n] // (h*w)
+#         if kk != k and n != 0:
+#             # if q >= mask[0, k, :, :].sum():
+#             q = 0
+#             pp += 1
+#         # t4 = time.time()
+#         # t43.append((t4 - t3) * 1000)
+#         p = a[n] % (h*w)
+#         i = p // w
+#         j = p % h
+#         h_1 = i * h_interval
+#         w_1 = j * w_interval
+#         # t5 = time.time()
+#         # t54.append((t5 - t4) * 1000)
+#         residual[0, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval, w_1:w_1 + w_interval] += feat[pp][q] # + residual[:, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval, w_1:w_1 + w_interval]
+#         # t6 = time.time()
+#         # t65.append((t6 - t5) * 1000)
+#         q += 1
+#         kk = k
+#         # t7 = time.time()
+#         # t76.append((t7 - t6) * 1000)
+
+#     return residual
 
 def calc_one_group(x,i,conv1,conv2,conv3,c_out_g1,c_out_g2,c_out_g3,relu):
     out = F.conv2d(x, conv1.weight[i * c_out_g1:(i + 1) * c_out_g1], padding=0)
@@ -1180,7 +1225,7 @@ if __name__ == "__main__":
     # from op_counter import measure_model
     import time
     import numpy as np
-    # torch.set_num_threads(1)
+    torch.set_num_threads(1)
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
@@ -1253,13 +1298,13 @@ if __name__ == "__main__":
             # t76 = []
 
         # print('bottleneck_calc:', np.mean(a))
-        print('total_time_calc', np.mean(b))
+        print('total_time_calc', np.mean(b),np.std(b))
         print('-------------------------------')
         # print('time_extract:', np.mean(c))
         # print('time_conv:', np.mean(d))
         # print('time_rearrange:', np.mean(e))
         # print('bottleneck_forward:', np.mean(f))
-        print('total_time', np.mean(g))
+        print('total_time', np.mean(g),np.std(g))
         # print('t21', np.mean(h))
         # print('t43', np.mean(j))
         # print('t54', np.mean(k))

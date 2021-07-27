@@ -12,7 +12,7 @@
 
 import torch
 import torch.nn as nn
-
+from conv_bn_fuse import fuse_module
 # from ._model_urls import model_urls
 
 __all__ = ['blresnet_model']
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     torch.set_num_threads(1)
     import time
     import numpy as np
-    blres = blresnet_model(depth=50,alpha=4,beta=2)
+    blres = blresnet_model(depth=50,alpha=2,beta=2)
     # def params_count(model):
     #     return np.sum([p.numel() for p in model.parameters()]).item()
     # num_params = params_count(blres)
@@ -233,7 +233,8 @@ if __name__ == '__main__':
     # assert(0==1)
     # cls_ops, cls_params = measure_model(blres, 224, 224)
     # print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
-
+    blres.eval()
+    fuse_module(blres)
     x = torch.rand(1,3,224,224)
     t_sim = []
     for i in range(100):
@@ -242,5 +243,5 @@ if __name__ == '__main__':
         t2 = time.time()
         t_sim.append((t2 - t1)*1000)
         print((t2 - t1)*1000)
-    print('TIME sim: ', np.mean(t_sim))
-    print(np.std(t_sim)) 
+    print('TIME sim: ', np.mean(t_sim),np.std(t_sim))
+    # print() 

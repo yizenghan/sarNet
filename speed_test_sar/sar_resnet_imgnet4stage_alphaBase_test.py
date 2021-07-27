@@ -1165,7 +1165,7 @@ if __name__ == "__main__":
     # from op_counter import measure_model
     import time
     import numpy as np
-
+    torch.set_num_threads(1)
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
@@ -1270,7 +1270,7 @@ if __name__ == "__main__":
         print('time_trans_fuse:', np.mean(t_trans_fuse))
         print('time_tail:', np.mean(t_tail))
         print('time_layers', np.mean(t_layers))
-        print('total_time', np.mean(g))
+        print('total_time', np.mean(g), np.std(g))
         print('-------------------------------')
         print('time_refine_bottleneck:', np.mean(f))
         print('time_downsample_in_refine:', np.mean(t_downsample))

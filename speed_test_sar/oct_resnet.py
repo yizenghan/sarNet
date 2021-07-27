@@ -1,6 +1,6 @@
 import torch.nn as nn
 from octconv import *
-
+from conv_bn_fuse import fuse_module
 
 
 class Bottleneck(nn.Module):
@@ -384,6 +384,7 @@ if __name__ == '__main__':
     args.num_classes = 1000
     net = oct_resnet50()#.cuda(1)
     net.eval()
+    fuse_module(net)
     x = torch.rand(1,3,224,224)#.cuda(1)
     # y, _flops = net.forward_calc_flops(x)
     # print(_flops / 1e9)
@@ -402,11 +403,11 @@ if __name__ == '__main__':
             # print(t)
             t_sim.append((t-t1)*1000)
             print((t-t1)*1000)
-    print('TIME sim: ', np.mean(t_sim))
+    print('TIME sim: ', np.mean(t_sim),np.std(t_sim))
     # s = 0
     # for item in t_sim:
     #     s+=pow((item-np.mean(t_sim)),2)
     # sa = s / len(t_sim)
-    print(np.std(t_sim)) 
+    # print() 
     y, _flops = net.forward_calc_flops(x)
     print(_flops / 1e9)
