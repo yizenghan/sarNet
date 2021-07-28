@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt 
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 
 model_urls = {
     'mobilenet_v2': 'https://download.pytorch.org/models/mobilenet_v2-b0353104.pth',
@@ -174,7 +174,7 @@ class InvertedResidual_base(nn.Module):
 
     def forward(self, x):
         residual = x
-        if self.downsample is not None:     
+        if self.downsample is not None:
             x = self.downsample(x)
         
         if self.expand_ratio != 1:
@@ -190,7 +190,7 @@ class InvertedResidual_base(nn.Module):
     def forward_calc_flops(self, x):
         flops = 0
         residual = x
-        if self.downsample is not None:     
+        if self.downsample is not None:
             x = self.downsample(x)
             flops += x.shape[1] * x.shape[2] * x.shape[3] * 9
         
@@ -267,17 +267,15 @@ class InvertedResidual_refine(nn.Module):
             return x + residual
         else:
             return x
-        
+
     def forward_calc_flops(self, x, mask):
         flops = 0
         residual = x
-        
         if self.expand_ratio != 1:
             c_in = x.shape[1]
             x = self.conv_expand(x)
             _,c_out,h,w = x.shape
             flops += c_in * c_out * h * w
-        
         ratio = mask.sum() / mask.numel()
         # ratio = 0.5
         # print(ratio)
@@ -287,24 +285,23 @@ class InvertedResidual_refine(nn.Module):
         mask1 = mask.clone()
         if g > 1:
             mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
-            
         mask1 = F.interpolate(mask1, size = (h,w))
         # print(mask1.shape, x.shape)
         x = x * mask1
         x = self.dwc(x)
         flops += ratio * x.shape[1] * x.shape[2] * x.shape[3] * 9
-        
+
         _,c_in,h,w = x.shape
         mask2 = mask.clone()
         if g > 1:
             mask2 = mask2.unsqueeze(1).repeat(1,c_in//g,1,1,1).transpose(1,2).reshape(b,c_in,m_h,m_h)
-        
+
         mask2 = F.interpolate(mask2, size = (h,w))
         x = x * mask2
         x = self.pwc(x)
         _,c_out,h,w = x.shape
         flops += ratio * c_in * c_out * h * w / self.patch_groups
-        
+
         if self.use_res_connect:
             return x + residual, flops
         else:
@@ -313,7 +310,7 @@ class InvertedResidual_refine(nn.Module):
 # class SARModule(nn.Module):
 #     def __init__(self, t,c,n,s, input_channel, output_channel):
 #         super(SARModule, self).__init__()
-        
+
 #         blocks = []
 #         for i in range(n):
 #             stride = s if i == 0 else 1
@@ -321,21 +318,16 @@ class InvertedResidual_refine(nn.Module):
 #             input_channel = output_channel
 
 #         self.sar_module = nn.ModuleList(blocks)
-        
+
 #     def forward(self,x):
 #         for i in range(len(self.sar_module)):
 #             x = self.sar_module[i](x)
-            
 #         return x
-    
 #     def forward_calc_flops(self, x):
 #         flops = 0
-        
 #         for i in range(len(self.sar_module)):
 #             x, _flops = self.sar_module[i].forward_calc_flops(x)
-            
 #             flops += _flops
-            
 #         return x, flops
 
 class maskGen(nn.Module):
@@ -368,7 +360,6 @@ class maskGen(nn.Module):
         # for i in range(gates.shape[1]):
         #     print(gates[0,i,:,:,:])
         #     print('hhh')
-        
         # print(temperature)
         # assert(0==1)
         gates = self.gs(gates, temp=temperature, force_hard=True)
@@ -408,7 +399,6 @@ class SARModule(nn.Module):
                  alpha=2, beta=1,
                  patch_groups=1, mask_size=7):
         super(SARModule, self).__init__()
-        
         blocks_base = []
         output_channel_base = int(output_channel // alpha)
         input_channel_base = input_channel
@@ -418,17 +408,14 @@ class SARModule(nn.Module):
             blocks_base.append(InvertedResidual_base(input_channel_base, output_channel_base, stride, expand_ratio=t, is_first=is_first))
             input_channel_base = output_channel_base
         self.base_branch = nn.ModuleList(blocks_base)
-        
         self.alpha = alpha
         if alpha != 1:
             self.convert_base = ConvBNReLU(output_channel_base, output_channel)
-            
         mask_gen_list = []
         self.mask_size = mask_size
         for _ in range(n):
             mask_gen_list.append(maskGen(groups=patch_groups,inplanes=output_channel_base,mask_size=mask_size))
         self.mask_gen = nn.ModuleList(mask_gen_list)
-            
         blocks_refine = []
         input_channel_refine = input_channel
         output_channel_refine = int(output_channel * beta)
@@ -439,13 +426,11 @@ class SARModule(nn.Module):
                                                          patch_groups=patch_groups))
             input_channel_refine = output_channel_refine
         self.refine_branch = nn.ModuleList(blocks_refine)
-        
         self.beta = beta
         if beta != 1:
             self.convert_refine = ConvBNReLU(output_channel_refine, output_channel)
-            
         self.att_gen = AttentionLayer(channel=output_channel, reduction=16) 
-        
+        self.fuse_1x1 = ConvBNReLU(output_channel,output_channel,kernel_size=1)
     def forward(self,x, temperature=1e-6):
         # print
         _masks = []
@@ -456,17 +441,15 @@ class SARModule(nn.Module):
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
             x_refine = self.refine_branch[i](x_refine, mask) 
-            
         if self.alpha != 1:
             x_base = self.convert_base(x_base)
         if self.beta != 1:
             x_refine= self.convert_refine(x_refine)
-        
         att = self.att_gen(x_base)
         x_base = F.interpolate(x_base, scale_factor = 2)
-        
-        return att*x_base + (1-att)*x_refine, _masks
-    
+        output = self.fuse_1x1(att*x_base + (1-att)*x_refine)
+        return output, _masks
+
     def forward_calc_flops(self, x, temperature=1e-6):
         flops = 0
         _masks = []
@@ -477,21 +460,20 @@ class SARModule(nn.Module):
             mask, _flops = self.mask_gen[i].forward_calc_flops(x_base, temperature=temperature)
             _masks.append(mask)
             flops += _flops
-            
             x_refine, _flops = self.refine_branch[i].forward_calc_flops(x_refine, mask) 
             flops += _flops
-        
         if self.alpha != 1:
             x_base, _flops = self.convert_base.forward_calc_flops(x_base)
             flops += _flops
         if self.beta != 1:
             x_refine, _flops = self.convert_refine.forward_calc_flops(x_refine)
             flops += _flops
-        
         att,_flops = self.att_gen.forward_calc_flops(x_base)
         flops += _flops
-        x_base = F.interpolate(x_base, scale_factor = 2)   
-        return att*x_base + (1-att)*x_refine, _masks, flops
+        x_base = F.interpolate(x_base, scale_factor = 2)
+        output, _flops = self.fuse_1x1.forward_calc_flops(att*x_base + (1-att)*x_refine)
+        flops += _flops
+        return output, _masks, flops
 
 
 class MobileNetV2(nn.Module):
@@ -545,14 +527,13 @@ class MobileNetV2(nn.Module):
         self.last_channel = _make_divisible(last_channel * max(1.0, width_mult), round_nearest)
         # features = [ConvBNReLU(3, input_channel, stride=2)]
         self.conv0 = ConvBNReLU(3, input_channel, stride=2)
-        
-        
+
+
         # building inverted residual blocks
         t, c, _, _ = inverted_residual_setting[0]
         output_channel = _make_divisible(c * width_mult, round_nearest)
         self.first_block = block(input_channel, output_channel, stride=1, expand_ratio=t)
         input_channel = output_channel
-        
         sar_modules = list()
         for i in range(1,5):
             t, c, n, s = inverted_residual_setting[i]
@@ -568,25 +549,21 @@ class MobileNetV2(nn.Module):
                                    patch_groups=patch_groups,
                                    mask_size=mask_size)
             input_channel = output_channel
-            
             sar_modules.append(sar_module)
-            
+
         self.sar_modules = nn.ModuleList(sar_modules)
-        
-        
+
         block_last2 = list()
         for j in range(5,7):
             t, c, n, s = inverted_residual_setting[j]
             output_channel = _make_divisible(c * width_mult, round_nearest)
-            
+
             for i in range(n):
                 stride = s if i == 0 else 1
                 block_last2.append(block(input_channel, output_channel, stride=stride, expand_ratio=t))
                 input_channel = output_channel
-            
+
         self.block_last2 = nn.ModuleList(block_last2)
-        
-        
         # for t, c, n, s in inverted_residual_setting:
         #     output_channel = _make_divisible(c * width_mult, round_nearest)
         #     # 
@@ -595,7 +572,6 @@ class MobileNetV2(nn.Module):
         #         features.append(block(input_channel, output_channel, stride, expand_ratio=t))
         #         input_channel = output_channel
         # building last several layers
-        
         self.conv_last = ConvBNReLU(input_channel, self.last_channel, kernel_size=1)
         # features.append(ConvBNReLU(input_channel, self.last_channel, kernel_size=1))
         # make it nn.Sequential
@@ -638,21 +614,21 @@ class MobileNetV2(nn.Module):
             # print('start a sar module', x.shape)
             x, masks = self.sar_modules[i](x, temperature=temperature)
             _masks.extend(masks)
-            
+
         for i in range(len(self.block_last2)):
             x = self.block_last2[i](x)
-            
+
         x = self.conv_last(x)
         x = x.mean([2, 3])
         x = self.classifier(x)
-        
+
         return x, _masks
-    
+
     def forward_calc_flops(self, x, temperature=1.0, inference=False):
         # return self._forward_impl(x)
         # c = x.shape[1]
         x, flops = self.conv0.forward_calc_flops(x)
-        
+
         x, _flops = self.first_block.forward_calc_flops(x)
         flops += _flops
         _masks = []
@@ -660,23 +636,21 @@ class MobileNetV2(nn.Module):
             x, masks, _flops = self.sar_modules[i].forward_calc_flops(x, temperature=temperature)
             flops += _flops
             _masks.extend(masks)
-            
+
         for i in range(len(self.block_last2)):
             x, _flops= self.block_last2[i].forward_calc_flops(x)
             flops += _flops
-            
-            
+
         x, _flops = self.conv_last.forward_calc_flops(x)
         flops += _flops
-        
+
         x = x.mean([2, 3])
-        
+
         c_in = x.shape[1]
         x = self.classifier(x)
         flops += c_in * x.shape[1]
-        
+
         return x, _masks, flops
-    
 
 
 def mobilenet_v2_width10_sar(args, **kwargs):
@@ -711,17 +685,15 @@ if __name__ == "__main__":
     args.alpha = 2
     args.beta = 1
     net = mobilenet_v2_width10_sar(args)
-    
+
     net.eval()
     with torch.no_grad():
         # cls_ops, cls_params = measure_model(net, 224,224)
         # print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
-        
-        
-        
+
         x = torch.rand(1,3,224,224)
-        
-        y0 = net(x)
-        y1, flops = net.forward_calc_flops(x)
-        
+
+        y0,_ = net(x)
+        y1,_, flops = net.forward_calc_flops(x)
+
         print(flops/ 1e9)
