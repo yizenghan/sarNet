@@ -30,6 +30,7 @@ MANIFEST
 evaluate_models/
 .vscode/
 log/
+log_add1x1/
 *.sh
 .history/
 .DS_Store
