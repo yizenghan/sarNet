@@ -235,7 +235,7 @@ class Bottleneck(nn.Module):
         self.last_relu = last_relu
 
     def forward(self, x):
-        t0_base = time.time()
+        # t0_base = time.time()
         if self.first_downsample is not None:
             x = self.first_downsample(x)
         residual = x
@@ -256,8 +256,8 @@ class Bottleneck(nn.Module):
         out += residual
         if self.last_relu:
             out = self.relu(out)
-        t1_base = time.time()
-        time_base_branch.append((t1_base-t0_base) * 1000)
+        # t1_base = time.time()
+        # time_base_branch.append((t1_base-t0_base) * 1000)
         return out
 
     def forward_calc_flops(self, x):
@@ -327,12 +327,12 @@ class Bottleneck_refine(nn.Module):
         self.patch_groups = patch_groups
 
     def forward(self, x, mask, inference=True):
-        t0 = time.time()
+        # t0 = time.time()
         residual = x
         if self.downsample is not None:  # skip connection before mask
             residual = self.downsample(x)
-        t1 = time.time()
-        time_ds.append((t1-t0)*1000)
+        # t1 = time.time()
+        # time_ds.append((t1-t0)*1000)
         if not inference:
             b, c, h, w = x.shape
             g = mask.shape[1]
@@ -413,70 +413,60 @@ class Bottleneck_refine(nn.Module):
             x_ = torch.masked_select(x_, mask>0)
             # print(x_.shape)
             
-            inputs = []
-            input_x = x_[:int(n_pixels_per_group[0])].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch)
-            inputs.append(input_x)
-            # print(input_x.shape)
-            
-            for i in range(1, g):
-                input_x = x_[int(torch.sum(n_pixels_per_group[:i-1])):int(torch.sum(n_pixels_per_group[:i]))].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch)
-                inputs.append(input_x)
-
-   
-            # if g > 1:
-            #     mask1 = mask.unsqueeze(1).repeat(1, c // g, 1, 1, 1).transpose(1, 2).reshape(b, c, m_h, m_h)
-            # else:
-            #     mask1 = mask.clone()
-            # mask1 = F.interpolate(mask1, size=(h, w))
-            # # print(mask1.shape, x.shape)
-            # out = x * mask1
-            # t3 = time.time()
-            # t_prepare_mask = t3-t1
-            # time_prepare_mask.append(t_prepare_mask * 1000)
-            # x_ = _extract_from_mask(out, mask)
-            t4 = time.time()
-            t_extract = t4 - t1
-            # print('extract_time is:', t_extract*1000)
-            time_extract.append(t_extract*1000)
-
-            t4 = time.time()
             outs = []
-            # pp = 0
+            input_x = x_[:int(n_pixels_per_group[0])].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch)
             c_out_g1 = self.conv1.out_channels // g
             c_out_g2 = self.conv2.out_channels // g
             c_out_g3 = self.conv3.out_channels // g
-            for i in range(g):
-                c_out_g = self.conv1.out_channels // g
+            # inputs.append(input_x)
+            # print(input_x.shape)
 
-                if mask[0, i, :, :].sum() == 0:
-                    continue
-                weight = self.conv1.weight
-                out = calc_one_group(inputs[i],i, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
+            out = calc_one_group(input_x,0, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
+            outs.append(out)
+                
+            for i in range(1, g):
+                input_x = x_[int(torch.sum(n_pixels_per_group[:i-1])):int(torch.sum(n_pixels_per_group[:i]))].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch)
+                # inputs.append(input_x)
+                out = calc_one_group(input_x,i, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
                 outs.append(out)
 
-                # pp += 1
+   
+            # t4 = time.time()
+            # t_extract = t4 - t1
+            # print('extract_time is:', t_extract*1000)
+            # time_extract.append(t_extract*1000)
 
-            t5 = time.time()
-            t_conv = t5 - t4
+            # t4 = time.time()
+            # outs = []
+            # pp = 0
+            
+            # for i in range(g):
+            #     if mask[0, i, :, :].sum() == 0:
+            #         continue
+            #     out = calc_one_group(inputs[i],i, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
+            #     outs.append(out)
+
+            # t5 = time.time()
+            # t_conv = t5 - t4
             # print('conv_time is:', t_conv*1000)
-            time_conv.append(t_conv*1000)
+            # time_conv.append(t_conv*1000)
             # outs = _rearrange_features(outs, mask, residual)
             # assert(0==1)
             outs = _rearrange_features(outs, mask)
 
-            outs+=residual
-            t6 = time.time()
-            t_rearrange = t6 - t5
-            time_rearrange.append(t_rearrange*1000)
+            outs += residual
+            # t6 = time.time()
+            # t_rearrange = t6 - t5
+            # time_rearrange.append(t_rearrange*1000)
             if self.last_relu:
                 outs = self.relu(outs)
 
-            t7 = time.time()
-            t_total = t7 - t0
+            # t7 = time.time()
+            # t_total = t7 - t0
             # print('total_time is', t_total*1000, '--------')
             # print(t_total-t_prepare_mask-t_extract-t_conv-t_rearrange)
             # assert(0==1)
-            time_forward.append(t_total*1000)
+            # time_forward.append(t_total*1000)
             return outs
 
 
@@ -664,7 +654,7 @@ class sarModule(nn.Module):
         return nn.ModuleList(layers)
 
     def forward(self, x, temperature=1e-8, inference=False):
-        t0 = time.time()
+        # t0 = time.time()
         _masks = []
         x_refine = x
         refine_ls = []
@@ -726,20 +716,20 @@ class sarModule(nn.Module):
 
         # ratio = global_mask.sum() / global_mask.numel()
         # print('ratio:', ratio)
-        t1 = time.time()
-        time_mask_define.append((t1-t0) * 1000)
+        # t1 = time.time()
+        # time_mask_define.append((t1-t0) * 1000)
         for i in range(len(self.base_module)):
             x_base = self.base_module[i](x_base) if i != 0 else self.base_module[i](x)
-            t0 = time.time()
-            mask = self.mask_gen[i](x_base, temperature=temperature)
-            t1 = time.time()
-            time_mask_gen.append((t1-t0) * 1000)
+            # t0 = time.time()
+            # mask = self.mask_gen[i](x_base, temperature=temperature)
+            # t1 = time.time()
+            # time_mask_gen.append((t1-t0) * 1000)
             # mask = torch.zeros((1, self.patch_groups, self.mask_size, self.mask_size))
             mask = global_mask
             _masks.append(mask)
             x_refine = self.refine_module[i](x_refine, mask, inference=inference)
             refine_ls.append(x_refine)
-        t0 = time.time()
+        # t0 = time.time()
         if self.alpha != 1:
             x_base = self.base_transform(x_base)
         if self.beta != 1:
@@ -747,8 +737,8 @@ class sarModule(nn.Module):
         _, _, h, w = x_refine.shape
         x_base = F.interpolate(x_base, size=(h, w))
         out = self.relu(x_base + x_refine)
-        t1 = time.time()
-        time_transform_fusion.append((t1-t0) * 1000)
+        # t1 = time.time()
+        # time_transform_fusion.append((t1-t0) * 1000)
         out = self.fusion[0](out)
         return refine_ls, out, _masks
 
@@ -905,14 +895,14 @@ class sarResNet(nn.Module):
         return nn.ModuleList(layers)
 
     def forward(self, x, temperature=1.0, inference=False):
-        t0 = time.time()
+        # t0 = time.time()
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
         # print('before layer 1:', x.shape)
-        t1 = time.time()
-        time_stem.append((t1 - t0)* 1000)
+        # t1 = time.time()
+        # time_stem.append((t1 - t0)* 1000)
         _masks = []
 
         ls, x, mask = self.layer1(x, temperature=temperature, inference=inference)
@@ -926,13 +916,13 @@ class sarResNet(nn.Module):
         # print('before layer 4:', x.shape)
         for i in range(len(self.layer4)):
             x = self.layer4[i](x)
-        t2 = time.time()
-        time_layers.append((t2 - t1) * 1000)
+        # t2 = time.time()
+        # time_layers.append((t2 - t1) * 1000)
         x = self.gappool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-        t3 = time.time()
-        time_tail.append((t3-t2) * 1000)
+        # t3 = time.time()
+        # time_tail.append((t3-t2) * 1000)
         return ls, x, _masks
 
     def forward_calc_flops(self, x, temperature=1.0, inference=False):
@@ -1191,11 +1181,10 @@ if __name__ == "__main__":
     args.base_scale = 2
     sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
     # print(sar_res)
-
+    sar_res.eval()
     with torch.no_grad():
         # print(sar_res)
         x = torch.rand(1, 3, 224, 224)
-        sar_res.eval()
         fuse_module(sar_res)
         a=[]
         b=[]

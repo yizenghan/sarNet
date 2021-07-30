@@ -234,7 +234,7 @@ if __name__ == '__main__':
     # cls_ops, cls_params = measure_model(blres, 224, 224)
     # print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
     blres.eval()
-    fuse_module(blres)
+    # fuse_module(blres)
     x = torch.rand(1,3,224,224)
     t_sim = []
     for i in range(100):

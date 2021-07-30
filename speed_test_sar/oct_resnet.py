@@ -384,7 +384,7 @@ if __name__ == '__main__':
     args.num_classes = 1000
     net = oct_resnet50()#.cuda(1)
     net.eval()
-    fuse_module(net)
+    # fuse_module(net)
     x = torch.rand(1,3,224,224)#.cuda(1)
     # y, _flops = net.forward_calc_flops(x)
     # print(_flops / 1e9)
