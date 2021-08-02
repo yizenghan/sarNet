@@ -40,6 +40,7 @@ log_resume/
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+.vscode/
 
 # Installer logs
 pip-log.txt
