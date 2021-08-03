@@ -1,21 +1,21 @@
+# import moxing as mox
+# mox.file.shift('os', 'mox')
+
 import os
-os.environ["MOX_SILENT_MODE"] = "1"
-import moxing as mox
-mox.file.shift('os', 'mox')
-os.system('pip install yacs')
-try:
-    import yacs
-except Exception:
-    mox.file.copy_parallel('obs://d-cheap-net-shanghai/module/yacs-master/', '/cache/yacs-master')
-    os.system('pip --default-timeout=100 install -v --no-cache-dir /cache/yacs-master')
 import argparse
 import time
 import random
 import warnings
 warnings.filterwarnings("ignore")
+os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 import pandas as pd
 
+import sys
+# current_path = os.path.dirname('obs://d-cheap-net-shanghai/hanyz/sarNet/main_sar.py')
+# sys.path.append(current_path)
+
 import double_checked_models
+import models
 from utils import *
 from optimizer import get_optimizer
 from criterion import get_criterion
@@ -24,6 +24,7 @@ from transform import get_transform
 from hyperparams import get_hyperparams
 from config import Config
 
+import math
 import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -35,24 +36,26 @@ import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 
+from models.op_counter import measure_model
 
-parser = argparse.ArgumentParser(description='PyTorch Condensed Convolutional Networks')
+from queue_jump import check_gpu_memory
+
+parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
-parser.add_argument('--data_url', type=str, metavar='DIR', default='/data/dataset/CLS-LOC/',
-                    help='path to dataset')
-parser.add_argument('--train_url', type=str, metavar='PATH', default='./log/test/',
+parser.add_argument('--data_url', type=str, metavar='DIR', default='/home/data/ImageNet/', help='path to dataset')
+parser.add_argument('--train_url', type=str, metavar='PATH', default='/data/hanyz/code/sarNet/log/',
                     help='path to save result and checkpoint (default: results/savedir)')
 parser.add_argument('--dataset', metavar='DATASET', default='imagenet', choices=['cifar10', 'cifar100', 'imagenet'],
                     help='dataset')
 parser.add_argument('-j', '--workers', default=64, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
+parser.add_argument('--epochs', default=110, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch_size', default=128, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
-parser.add_argument('--lr', '--learning_rate', default=0.05, type=float,
+parser.add_argument('--lr', '--learning_rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate (default: 0.1)')
 parser.add_argument('--scheduler', default='multistep', type=str, metavar='T',
                     help='learning rate strategy (default: multistep)',
@@ -65,7 +68,7 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum (default: 0.9)')
 parser.add_argument('--weight_decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
-parser.add_argument('--print_freq', '-p', default=10, type=int,
+parser.add_argument('--print_freq', '-p', default=200, type=int,
                     metavar='N', help='print frequency (default: 10)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
@@ -104,6 +107,51 @@ parser.add_argument('--multiprocessing_distributed', action='store_true',
                          'N processes per node, which has N GPUs. This is the '
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
+
+parser.add_argument('--t0', default=1.0, type=float, metavar='M', help='momentum')
+parser.add_argument('--t_last', default=0.01, type=float, metavar='M', help='momentum')
+parser.add_argument('--target_rate', default=2.5, type=float, metavar='M', help='momentum')
+parser.add_argument('--lambda_act', default=1.0, type=float, metavar='M', help='momentum')
+parser.add_argument('--temp', default=0.1, type=float, metavar='M', help='momentum')
+parser.add_argument('--lrfact', default=1, type=float,
+                    help='learning rate factor')
+parser.add_argument('--dynamic_rate', default=0, type=int)
+
+parser.add_argument('--arch', default='sar_resnet_imgnet4stage_alphaBase', type=str)
+parser.add_argument('--arch_config', default='sar_resnet34_alphaBase_4stage_cifar', type=str)
+parser.add_argument('--patch_groups', default=2, type=int)
+parser.add_argument('--alpha', default=2, type=int)
+parser.add_argument('--beta', default=1, type=int)
+parser.add_argument('--base_scale', default=2, type=int)
+parser.add_argument('--mask_size', default=7, type=int)
+parser.add_argument('--temp_scheduler', default='exp', type=str)
+parser.add_argument('--t_last_epoch', default=160, type=int)
+parser.add_argument('--ta_begin_epoch', default=30, type=int)
+parser.add_argument('--ta_last_epoch', default=60, type=int)
+
+parser.add_argument('--use_amp', type=int, default=0,help='apex')
+
+parser.add_argument('--use_stem', type=int, default=0)
+
+args = parser.parse_args()
+# args.t_last_epoch = args.epochs
+args.train_on_cloud = False
+args.use_stem = True if args.use_stem > 0 else False
+# args.dynamic_rate = True if args.dynamic_rate > 0 else False
+if args.use_amp > 0:
+    try:
+        from apex import amp
+        from apex.parallel import DistributedDataParallel as DDP
+        from apex.parallel import convert_syncbn_model
+        has_apex = True
+    except ImportError:
+        os.system('pip --default-timeout=100 install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./apex-master')
+        from apex import amp
+        from apex.parallel import DistributedDataParallel as DDP
+        from apex.parallel import convert_syncbn_model
+        has_apex = True
+        args.print_custom('successfully install apex')
+
 best_acc1 = 0
 best_acc1_corresponding_acc5 = 0
 val_acc_top1 = []
@@ -114,20 +162,30 @@ train_loss = []
 valid_loss = []
 lr_log = []
 epoch_log = []
-
+val_act_rate = []
+val_FLOPs = []
+args.temp = args.t0
 
 def main():
-    args = parser.parse_args()
-
+    # check_gpu_memory()
+    str_t0 = str(args.t0).replace('.', '_')
+    str_lambda = str(args.lambda_act).replace('.', '_')
+    str_ta = str(args.target_rate).replace('.', '_')
+    str_t_last = str(args.t_last).replace('.', '_')
+    save_path = f'{args.train_url}_ImageNet/{args.arch_config}/'
+    args.train_url = save_path
     if not args.train_on_cloud:
         if not os.path.exists(args.train_url):
             os.makedirs(args.train_url)
+    logger = Logger(args.train_url + 'screen_output.txt')
+    args.print_custom = logger.log
 
     assert args.dataset == 'imagenet'
     args.num_classes = 1000
     args.IMAGE_SIZE = 224
 
     args.multiprocessing_distributed = True
+    args.use_amp = True if args.use_amp == 1 else 0
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -172,14 +230,27 @@ def main_worker(gpu, ngpus_per_node, args):
     global valid_loss
     global lr_log
     global epoch_log
+    global val_FLOPs
+    global val_act_rate
     args.gpu = gpu
     args.cfg = Config.fromfile(args.config)
+
+    args.print_custom(args.cfg)
     args.hyperparams_set_index = args.cfg['train_cfg']['hyperparams_set_index']
     args = get_hyperparams(args, test_code=args.test_code)
-    print('Hyper-parameters:', str(args))
+    # args.print_custom('Hyper-parameters:', str(args))
+    # args.print_custom(args.batch_size)
+    # assert(0==1)
+    if args.train_on_cloud:
+        with mox.file.File(args.train_url+'train_configs.txt', "w") as f:
+            f.write(str(args))
+    else:
+        with open(args.train_url+'train_configs.txt', "w") as f:
+            f.write(str(args))
 
+    # assert(0==1)
     if args.gpu is not None:
-        print("Use GPU: {} for training".format(args.gpu))
+        args.print_custom("Use GPU: {} for training".format(args.gpu))
 
     if args.distributed:
         if args.dist_url == "env://" and args.rank == -1:
@@ -193,27 +264,25 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ### Create model
     # model = pytorchmodels.resnet50(pretrained=False)
-    model_type = args.cfg['model'].pop('type')
-    model = eval(model_type)(**args.cfg['model'])
-    print('Model Struture:', str(model))
+    model_type = args.arch_config
+    args.print_custom(args.arch, args.arch_config)
+    model = eval(f'models.{args.arch}.{args.arch_config}')(args)
 
+    # args.print_custom('Model Struture:', str(model))
+    if args.train_on_cloud:
+        with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
+            f.write(str(model))
+    else:
+        with open(args.train_url+'model_arch.txt', "w") as f:
+            f.write(str(model))
     ### Calculate FLOPs & Param
-    # params = 0
-    # import operator
-    # from functools import reduce
-    # for m in model.modules():
-    #     if is_leaf(m):
-    #         # print(m)
-    #         params += sum([reduce(operator.mul, i.size(), 1) for i in m.parameters()])
-    # print(params)
-    # assert 1 == 0
-
-    n_flops, n_params = measure_model(model, args.cfg['test_cfg']['crop_size'],
-                                      args.cfg['test_cfg']['crop_size'])
-    print('Params: %.2fM, FLOPs: %.2fM' % (n_params / 1e6, n_flops / 1e6))
-    assert 1==0
-    # del (model)
-    # model = eval(str(args.model))(args)
+    model.eval()
+    rand_inp = torch.rand(1, 3, 224,224)
+    # _, _, args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
+    cls_ops, cls_params = measure_model(model, 224,224)
+    print(cls_params[-1]/1e6, cls_ops[-1]/1e9)
+    # args.full_flops /= 1e9
+    # args.print_custom(f'FULL FLOPs: {args.full_flops}')
 
     ### Optionally evaluate from a model
     if args.evaluate_from is not None:
@@ -229,6 +298,12 @@ def main_worker(gpu, ngpus_per_node, args):
         # load params
         model.load_state_dict(new_state_dict)
 
+    ### Define loss function (criterion) and optimizer
+    criterion = get_criterion(args).cuda(args.gpu)
+    optimizer = get_optimizer(args, model)
+    scheduler = get_scheduler(args)
+    
+
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
@@ -236,6 +311,8 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.gpu is not None:
             torch.cuda.set_device(args.gpu)
             model.cuda(args.gpu)
+            if args.use_amp:
+                model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
             # When using a single GPU per process and per
             # DistributedDataParallel, we need to divide the batch size
             # ourselves based on the total number of GPUs we have
@@ -244,26 +321,26 @@ def main_worker(gpu, ngpus_per_node, args):
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         else:
             model.cuda()
+            if args.use_amp:
+                model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
             # DistributedDataParallel will divide and allocate batch_size to all
             # available GPUs if device_ids are not set
             model = torch.nn.parallel.DistributedDataParallel(model)
     elif args.gpu is not None:
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
+        if args.use_amp:
+            model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
     else:
         # DataParallel will divide and allocate batch_size to all available GPUs
         model = torch.nn.DataParallel(model).cuda()
 
-    ### Define loss function (criterion) and optimizer
-    criterion = get_criterion(args).cuda(args.gpu)
-    optimizer = get_optimizer(args, model)
-    scheduler = get_scheduler(args)
-
+    
     # optionally resume from a checkpoint
     # args.gpu = None
     if args.resume:
         if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
+            args.print_custom("=> loading checkpoint '{}'".format(args.resume))
             if args.gpu is None:
                 checkpoint = torch.load(args.resume)
             else:
@@ -280,7 +357,8 @@ def main_worker(gpu, ngpus_per_node, args):
                 pass
 
             model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
+            if not args.evaluate:
+                optimizer.load_state_dict(checkpoint['optimizer'])
             val_acc_top1 = checkpoint['val_acc_top1']
             val_acc_top5 = checkpoint['val_acc_top5']
             tr_acc_top1 = checkpoint['tr_acc_top1']
@@ -288,20 +366,23 @@ def main_worker(gpu, ngpus_per_node, args):
             train_loss = checkpoint['train_loss']
             valid_loss = checkpoint['valid_loss']
             lr_log = checkpoint['lr_log']
+            # val_act_rate = checkpoint['val_act_rate']
+            # val_FLOPs = checkpoint['val_FLOPs']
+            # args.temp = checkpoint['temp']
             try:
                 epoch_log = checkpoint['epoch_log']
             except:
-                print('There is no epoch_log in checkpoint!')
-            print("=> loaded checkpoint '{}' (epoch {})"
+                args.print_custom('There is no epoch_log in checkpoint!')
+            args.print_custom("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            args.print_custom("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
 
     ### Data loading
-    print('Train data augmentaion:', get_transform(args, is_train_set=True))
-    print('Valid data augmentaion:', get_transform(args, is_train_set=False))
+    args.print_custom('Train data augmentaion:', get_transform(args, is_train_set=True))
+    args.print_custom('Valid data augmentaion:', get_transform(args, is_train_set=False))
 
     traindir = args.data_url + 'train/'
     valdir = args.data_url + 'val/'
@@ -323,26 +404,31 @@ def main_worker(gpu, ngpus_per_node, args):
         datasets.ImageFolder(
             valdir,
             get_transform(args, is_train_set=False)),
-        batch_size=args.batch_size * torch.cuda.device_count(), shuffle=False,
+        batch_size=args.batch_size * torch.cuda.device_count()//2, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
-        validate(val_loader, model, criterion, args)
+        # target_rate = args.target_rate
+        validate(val_loader, model, criterion, args, target_rate=args.target_rate)
         return
 
     epoch_time = AverageMeter('Epoch Tiem', ':6.3f')
     start_time = time.time()
+    # args.temp = args.t0
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
         ### Train for one epoch
-        tr_acc1, tr_acc5, tr_loss, lr = \
-            train(train_loader, model, criterion, optimizer, scheduler, epoch, args)
-
+        # target_rate = adjust_target_rate(epoch, args)
+        args.print_custom(f'Epoch {epoch}')
+        # args.print_custom(f'Temperature: {args.temp}')
+       
+        tr_acc1, tr_acc5, tr_loss, lr = train(train_loader, model, criterion, optimizer, scheduler, epoch, args)
+        # tr_acc1, tr_acc5, tr_loss, lr = 0,0,0,0
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
             val_acc1, val_acc5, val_loss = validate(val_loader, model, criterion, args)
-
+            # assert(0==1)
             ### Remember best Acc@1 and save checkpoint
             is_best = val_acc1 > best_acc1
             if is_best:
@@ -355,13 +441,18 @@ def main_worker(gpu, ngpus_per_node, args):
                 val_acc_top5.append(val_acc5)
                 tr_acc_top1.append(tr_acc1)
                 tr_acc_top5.append(tr_acc5)
+                # val_act_rate.append(val_rate)
+                # val_FLOPs.append(val_flops)
                 train_loss.append(tr_loss)
                 valid_loss.append(val_loss)
                 lr_log.append(lr)
                 epoch_log.append(epoch)
-                df = pd.DataFrame({'val_acc_top1': val_acc_top1, 'val_acc_top5': val_acc_top5, 'tr_acc_top1': tr_acc_top1,
-                                   'tr_acc_top5': tr_acc_top5, 'train_loss': train_loss, 'valid_loss': valid_loss,
-                                   'lr_log': lr_log, 'epoch_log': epoch_log})
+                df = pd.DataFrame({'val_acc_top1': val_acc_top1, 'val_acc_top5': val_acc_top5, 
+                                'tr_acc_top1': tr_acc_top1,
+                                'tr_acc_top5': tr_acc_top5, 
+                                'train_loss': train_loss, 
+                                'valid_loss': valid_loss,
+                                'lr_log': lr_log, 'epoch_log': epoch_log})
                 log_file = args.train_url + 'log.txt'
                 if args.train_on_cloud:
                     with mox.file.File(log_file, "w") as f:
@@ -369,8 +460,9 @@ def main_worker(gpu, ngpus_per_node, args):
                 else:
                     with open(log_file, "w") as f:
                         df.to_csv(f)
+                ckpt_name = 'checkpoint.pth.tar' if epoch <= args.epochs-10 else f'checkpoint{epoch}.pth.tar'
                 save_checkpoint({
-                    'epoch': epoch,
+                    'epoch': epoch + 1,
                     'model': model_type,
                     'hyper_set': str(args),
                     'state_dict': model.state_dict(),
@@ -385,14 +477,14 @@ def main_worker(gpu, ngpus_per_node, args):
                     'valid_loss': valid_loss,
                     'lr_log': lr_log,
                     'epoch_log': epoch_log,
-                }, args, is_best, filename='checkpoint.pth.tar')
+                }, args, is_best, filename=ckpt_name)
 
         epoch_time.update(time.time() - start_time, 1)
-        print('Duration: %4f H, Left Time: %4f H' % (
+        args.print_custom('Duration: %4f H, Left Time: %4f H' % (
             epoch_time.sum / 3600, epoch_time.avg * (args.epochs - epoch - 1) / 3600))
         start_time = time.time()
 
-    print(' * Best Acc@1 {best_acc1:.3f} Acc@5 {best_acc1_corresponding_acc5:.3f}'
+    args.print_custom(' * Best Acc@1 {best_acc1:.3f} Acc@5 {best_acc1_corresponding_acc5:.3f}'
           .format(best_acc1=best_acc1, best_acc1_corresponding_acc5=best_acc1_corresponding_acc5))
     return
 
@@ -400,15 +492,20 @@ def main_worker(gpu, ngpus_per_node, args):
 def train(train_loader, model, criterion, optimizer, scheduler, epoch, args):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
+    # losses_cls = AverageMeter('Loss_cls', ':.4e')
+    # losses_act = AverageMeter('loss_act', ':.4e')
     losses = AverageMeter('Loss', ':.4e')
+    # act_rates = AverageMeter('Activation rate', ':.2e')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
+    # FLOPs = AverageMeter('FLOPs', ':.4e')
+    train_batches_num = len(train_loader)
+
     train_progress = ProgressMeter(
-        len(train_loader),
+        train_batches_num,
         [batch_time, data_time, losses, top1, top5],
         prefix="Epoch: [{}/{}]".format(epoch, args.epochs))
 
-    ### Switch to train mode
     model.train()
 
     end = time.time()
@@ -425,14 +522,14 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args):
         target = target.cuda(args.gpu, non_blocking=True)
 
         ### Compute output
+        # adjust_gs_temperature(epoch, i, train_batches_num, args)
         if args.mixup > 0.0:
             input, target_a, target_b, lam = mixup_data(input, target, args.mixup)
             output = model(input)
-            loss = mixup_criterion(criterion, output, target_a, target_b, lam)
+            loss_cls = mixup_criterion(criterion, output, target_a, target_b, lam)
         else:
             output = model(input)
-            loss = criterion(output, target)
-
+            loss_cls = criterion(output, target)
         ### Measure accuracy and record loss
         if args.mixup > 0.0:
             acc1_a, acc5_a = accuracy(output.data, target_a, topk=(1, 5))
@@ -441,13 +538,50 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args):
             acc5 = lam * acc5_a + (1 - lam) * acc5_b
         else:
             acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
+        
+
+        # act_rate = 0.0
+        # loss_act = 0.0
+        # for act in _masks:
+        #     act_rate += torch.mean(act)
+        #     loss_act += torch.pow(target_rate-torch.mean(act), 2)
+            
+        # act_rate = torch.mean(act_rate / len(_masks))
+        # loss_act = args.lambda_act * torch.mean(loss_act/len(_masks))
+        # args.print_custom(target_rate, act_rate, args.lambda_act, loss_act)
+        loss = loss_cls
+        # if args.dynamic_rate > 0:
+        #     loss = loss_cls + loss_act
+        # else:
+        #     loss = loss_cls + loss_act if epoch >= args.ta_begin_epoch else loss_cls
+
+        # FLOPs.update(flops.item(), input.size(0))
+        # act_rates.update(act_rate.item(), input.size(0))
+        # losses_act.update(loss_act.item(), input.size(0))
+        # losses_cls.update(loss_cls.item(), input.size(0))
         losses.update(loss.item(), input.size(0))
         top1.update(acc1.item(), input.size(0))
         top5.update(acc5.item(), input.size(0))
+        
+        if math.isnan(loss.item()):
+            optimizer.zero_grad()
+            continue
+        # else:
+        #     optimizer.zero_grad()
+        #     if args.use_amp:
+        #         with amp.scale_loss(loss_cls, optimizer) as scaled_loss:
+        #             scaled_loss.backward()
+        #     else:
+        #         loss_cls.backward()
+        #     continue 
 
         ### Compute gradient and do SGD step
         optimizer.zero_grad()
-        loss.backward()
+        if args.use_amp:
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+        else:
+            loss.backward()
         optimizer.step()
 
         ### Measure elapsed time
@@ -456,22 +590,25 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args):
 
         if i % args.print_freq == 0:
             train_progress.display(i)
-            print('LR: %6.4f' % (lr))
+            args.print_custom('LR: %6.4f' % (lr))
+            # args.print_custom('FLOPs: %6.4f' % (flops))
 
     return top1.avg, top5.avg, losses.avg, lr
 
-
 def validate(val_loader, model, criterion, args):
     batch_time = AverageMeter('Time', ':6.3f')
+    # losses_cls = AverageMeter('Loss_cls', ':.4e')
+    # losses_act = AverageMeter('loss_act', ':.4e')
+    # FLOPs = AverageMeter('FLOPs', ':.2e')
     losses = AverageMeter('Loss', ':.4e')
+    # act_rates = AverageMeter('Activation rate', ':.2e')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
     progress = ProgressMeter(
         len(val_loader),
-        [batch_time, losses, top1, top5],
+        [batch_time,losses, top1, top5],
         prefix='Test: ')
 
-    ### Switch to evaluate mode
     model.eval()
 
     end = time.time()
@@ -482,17 +619,35 @@ def validate(val_loader, model, criterion, args):
             target = target.cuda(args.gpu, non_blocking=True)
 
             ### Compute output single crop
+            # output = model(input)
             output = model(input)
+            # flops /= 1e9
             loss = criterion(output, target)
+            
+            # act_rate = 0.0
+            # loss_act = 0.0
+            # for act in _masks:
+            #     act_rate += torch.mean(act)
+            #     loss_act += torch.pow(target_rate-torch.mean(act), 2)
+            # act_rate = torch.mean(act_rate/len(_masks))
+            # loss_act = torch.mean(loss_act/len(_masks))
+            # loss_act = args.lambda_act * loss_act
+            # loss = loss_cls + loss_act
 
-            # Compute output ten crop
-            # bs, ncrops, c, h, w = input.size()
-            # output_ncrop = model(input.view(-1, c, h, w))
-            # output = output_ncrop.view(bs, ncrops, -1).mean(1)
-            # loss = criterion(output, target)
+            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
+
+            # dist.all_reduce(flops)
+            # flops /= args.world_size
+            dist.all_reduce(acc1)
+            acc1 /= args.world_size
+            dist.all_reduce(acc5)
+            acc5 /= args.world_size
+            dist.all_reduce(loss)
+            loss /= args.world_size
+            
 
             ### Measure accuracy and record loss
-            acc1, acc5 = accuracy(output.data, target, topk=(1, 5))
+            
             losses.update(loss.data.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             top5.update(acc5.item(), input.size(0))
@@ -501,14 +656,25 @@ def validate(val_loader, model, criterion, args):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if i % args.print_freq == 0:
+            if i % 10 == 0:
                 progress.display(i)
 
-    print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+    args.print_custom(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
     return top1.avg, top5.avg, losses.avg
 
+
+class Logger(object):
+    def __init__(self, filename):
+        self.filename = filename
+        with open(self.filename, 'w') as f:
+            f.write('=============================='+'\n')
+    def log(self, string, isprint=True):
+        if isprint:
+            print(string)
+        with open(self.filename, 'a') as f:
+            f.write(str(string)+'\n')
 
 if __name__ == '__main__':
     main()

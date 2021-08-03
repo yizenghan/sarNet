@@ -40,3 +40,4 @@ from .sar_resnet_2attFuse import *
 from .sar_resnet_1attFuse_dilated import *
 
 from .mobilenet_v2_sar import *
+from .mobilenet_v2 import *
