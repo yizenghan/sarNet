@@ -212,7 +212,7 @@ def get_hyperparams(args, test_code=0):
             args.weight_decay = 4e-5
             args.nesterov = True
             ### criterion
-            args.labelsmooth = 0.1
+            args.labelsmooth = 0
             ### lr scheduler
             args.scheduler = 'cosine'
             args.warmup_epoch = 5
