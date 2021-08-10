@@ -228,11 +228,11 @@ class InvertedResidual_refine(nn.Module):
         if expand_ratio != 1:
             # pw
             # layers.append(ConvBNReLU(inp, hidden_dim, kernel_size=1))
-            self.conv_expand = ConvBNReLU(inp, hidden_dim, kernel_size=1)
+            self.conv_expand = ConvBNReLU(inp, hidden_dim, kernel_size=1, groups=patch_groups)
         self.patch_groups = patch_groups
         self.dwc = ConvBNReLU(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim)
         self.pwc = nn.Sequential(
-            nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False, groups=patch_groups),
+            nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
             nn.BatchNorm2d(oup)
             )
     
@@ -240,28 +240,27 @@ class InvertedResidual_refine(nn.Module):
     def forward(self, x, mask):
         residual = x
         
-        if self.expand_ratio != 1:
-            x = self.conv_expand(x)
-        
-        # print(x.shape, mask.shape)
         b,c,h,w = x.shape
         g = mask.shape[1]
         m_h = mask.shape[2]
-        mask1 = mask.clone()
-        if g > 1:
-            mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
-            
-        mask1 = F.interpolate(mask1, size = (h,w))
-        # print(mask1.shape, x.shape)
-        x = x * mask1
-        x = self.dwc(x)
+        if self.expand_ratio != 1:
+            mask1 = mask.clone()
+            if g > 1:
+                mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
+                
+            mask1 = F.interpolate(mask1, size = (h,w))
+            # print(mask1.shape, x.shape)
+            x = x * mask1
+            x = self.conv_expand(x)
         
-        _,c_in,h,w = x.shape
+        _,c,h,w = x.shape
         mask2 = mask.clone()
         if g > 1:
-            mask2 = mask2.unsqueeze(1).repeat(1,c_in//g,1,1,1).transpose(1,2).reshape(b,c_in,m_h,m_h)
+            mask2 = mask2.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
         mask2 = F.interpolate(mask2, size = (h,w))
         x = x * mask2
+        
+        x = self.dwc(x)
         x = self.pwc(x)
         if self.use_res_connect:
             return x + residual
@@ -271,36 +270,37 @@ class InvertedResidual_refine(nn.Module):
     def forward_calc_flops(self, x, mask):
         flops = 0
         residual = x
-        if self.expand_ratio != 1:
-            c_in = x.shape[1]
-            x = self.conv_expand(x)
-            _,c_out,h,w = x.shape
-            flops += c_in * c_out * h * w
-        ratio = mask.sum() / mask.numel()
-        # ratio = 0.5
-        # print(ratio)
-        b,c,h,w = x.shape
+
         g = mask.shape[1]
         m_h = mask.shape[2]
-        mask1 = mask.clone()
-        if g > 1:
-            mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
-        mask1 = F.interpolate(mask1, size = (h,w))
-        # print(mask1.shape, x.shape)
-        x = x * mask1
-        x = self.dwc(x)
-        flops += ratio * x.shape[1] * x.shape[2] * x.shape[3] * 9
-
-        _,c_in,h,w = x.shape
+        ratio = mask.sum() / mask.numel()
+        # ratio = 0.6
+        if self.expand_ratio != 1:
+            b,c_in,h,w = x.shape
+            mask1 = mask.clone()
+            if g > 1:
+                mask1 = mask1.unsqueeze(1).repeat(1,c_in//g,1,1,1).transpose(1,2).reshape(b,c_in,m_h,m_h)
+            mask1 = F.interpolate(mask1, size = (h,w))
+            # print(mask1.shape, x.shape)
+            x = x * mask1
+            x = self.conv_expand(x)
+            _,c_out,h,w = x.shape
+            flops += ratio * c_in * c_out * h * w / self.patch_groups
+        
+        b,c_in,h,w = x.shape
         mask2 = mask.clone()
         if g > 1:
             mask2 = mask2.unsqueeze(1).repeat(1,c_in//g,1,1,1).transpose(1,2).reshape(b,c_in,m_h,m_h)
 
         mask2 = F.interpolate(mask2, size = (h,w))
         x = x * mask2
+        x = self.dwc(x)
+        flops += ratio * x.shape[1] * x.shape[2] * x.shape[3] * 9
+
+        c_in = x.shape[1]
         x = self.pwc(x)
         _,c_out,h,w = x.shape
-        flops += ratio * c_in * c_out * h * w / self.patch_groups
+        flops += c_in * c_out * h * w
 
         if self.use_res_connect:
             return x + residual, flops
@@ -410,7 +410,11 @@ class SARModule(nn.Module):
         self.base_branch = nn.ModuleList(blocks_base)
         self.alpha = alpha
         if alpha != 1:
-            self.convert_base = ConvBNReLU(output_channel_base, output_channel)
+            self.convert_base = nn.Sequential(
+                nn.Conv2d(output_channel_base, output_channel, kernel_size=1, bias=False),
+                nn.BatchNorm2d(output_channel)
+            )
+            # ConvBNReLU(output_channel_base, output_channel)
         mask_gen_list = []
         self.mask_size = mask_size
         for _ in range(n):
@@ -428,8 +432,13 @@ class SARModule(nn.Module):
         self.refine_branch = nn.ModuleList(blocks_refine)
         self.beta = beta
         if beta != 1:
-            self.convert_refine = ConvBNReLU(output_channel_refine, output_channel)
-        self.att_gen = AttentionLayer(channel=output_channel, reduction=16) 
+            self.convert_refine = nn.Sequential(
+                nn.Conv2d(int(output_channel_refine), output_channel, kernel_size=1, bias=False),
+                nn.BatchNorm2d(output_channel)
+            )
+            # ConvBNReLU(output_channel_refine, output_channel)
+        self.att_gen = AttentionLayer(channel=output_channel, reduction=16)
+        self.relu6 = nn.ReLU6(inplace=True)
         self.fuse_1x1 = ConvBNReLU(output_channel,output_channel,kernel_size=1)
     def forward(self,x, temperature=1e-6):
         # print
@@ -447,7 +456,8 @@ class SARModule(nn.Module):
             x_refine= self.convert_refine(x_refine)
         att = self.att_gen(x_base)
         x_base = F.interpolate(x_base, scale_factor = 2)
-        output = self.fuse_1x1(att*x_base + (1-att)*x_refine)
+        output = self.relu6(att*x_base + (1-att)*x_refine)
+        output = self.fuse_1x1(output)
         return output, _masks
 
     def forward_calc_flops(self, x, temperature=1e-6):
@@ -463,15 +473,19 @@ class SARModule(nn.Module):
             x_refine, _flops = self.refine_branch[i].forward_calc_flops(x_refine, mask) 
             flops += _flops
         if self.alpha != 1:
-            x_base, _flops = self.convert_base.forward_calc_flops(x_base)
-            flops += _flops
+            c_in = x_base.shape[1]
+            x_base = self.convert_base(x_base)
+            flops += c_in * x_base.shape[1] * x_base.shape[2] * x_base.shape[3]
         if self.beta != 1:
+            c_in = x_refine.shape[1]
             x_refine, _flops = self.convert_refine.forward_calc_flops(x_refine)
-            flops += _flops
+            flops += c_in * x_refine.shape[1] * x_refine.shape[2] * x_refine.shape[3]
         att,_flops = self.att_gen.forward_calc_flops(x_base)
         flops += _flops
         x_base = F.interpolate(x_base, scale_factor = 2)
-        output, _flops = self.fuse_1x1.forward_calc_flops(att*x_base + (1-att)*x_refine)
+        output = self.relu6(att*x_base + (1-att)*x_refine)
+        flops += x_base[0].numel() + x_refine[0].numel()
+        output, _flops = self.fuse_1x1.forward_calc_flops(output)
         flops += _flops
         return output, _masks, flops
 
