@@ -40,6 +40,7 @@ from .sar_resnet_2attFuse import *
 from .sar_resnet_1attFuse_dilated import *
 
 from .mobilenet_v2_sar_last2mask import *
+from .mobilenet_v2_sar_first2mask import *
 from .mobilenet_v2 import *
 
 from .mobilenet_v2_sar_3mask import *

@@ -667,21 +667,21 @@ class MobileNetV2(nn.Module):
         return x, _masks, flops
 
 
-def mobilenet_v2_width10_sar(args, **kwargs):
+def mobilenet_v2_width10_sar_last2mask(args, **kwargs):
     model = MobileNetV2(width_mult=1.0,
                         alpha=args.alpha,
                         beta=args.beta,
                         patch_groups=args.patch_groups, **kwargs)
     return model
 
-def mobilenet_v2_width13_sar(args, **kwargs):
+def mobilenet_v2_width13_sar_last2mask(args, **kwargs):
     model = MobileNetV2(width_mult=1.3,
                         alpha=args.alpha,
                         beta=args.beta,
                         patch_groups=args.patch_groups,**kwargs)
     return model
 
-def mobilenet_v2_width14_sar(args, **kwargs):
+def mobilenet_v2_width14_sar_last2mask(args, **kwargs):
     model = MobileNetV2(width_mult=1.4,
                         alpha=args.alpha,
                         beta=args.beta,
@@ -698,7 +698,7 @@ if __name__ == "__main__":
     args.patch_groups = 2
     args.alpha = 2
     args.beta = 1
-    net = mobilenet_v2_width10_sar(args)
+    net = mobilenet_v2_width10_sar_last2mask(args)
 
     net.eval()
     with torch.no_grad():
