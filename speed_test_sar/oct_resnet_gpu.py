@@ -382,10 +382,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch resnet Training')
     args = parser.parse_args()
     args.num_classes = 1000
-    net = oct_resnet50()#.cuda(1)
+    net = oct_resnet50().cuda(0)#.cuda(1)
     net.eval()
     # fuse_module(net)
-    x = torch.rand(1,3,224,224)#.cuda(1)
+    x = torch.rand(1,3,224,224).cuda(0)#.cuda(1)
     # y, _flops = net.forward_calc_flops(x)
     # print(_flops / 1e9)
     # example = torch.rand(1, 3, 224, 224)

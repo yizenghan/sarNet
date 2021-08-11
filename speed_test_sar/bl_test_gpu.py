@@ -225,7 +225,7 @@ if __name__ == '__main__':
     # torch.set_num_threads(1)
     import time
     import numpy as np
-    blres = blresnet_model(depth=50,alpha=2,beta=2)
+    blres = blresnet_model(depth=50,alpha=2,beta=2).cuda(0)
     # def params_count(model):
     #     return np.sum([p.numel() for p in model.parameters()]).item()
     # num_params = params_count(blres)
@@ -235,7 +235,7 @@ if __name__ == '__main__':
     # print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
     blres.eval()
     # fuse_module(blres)
-    x = torch.rand(1,3,224,224)
+    x = torch.rand(1,3,224,224).cuda(0)
     t_sim = []
     for i in range(100):
         t1 = time.time()
