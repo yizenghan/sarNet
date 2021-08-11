@@ -225,7 +225,7 @@ if __name__ == '__main__':
     # torch.set_num_threads(1)
     import time
     import numpy as np
-    blres = blresnet_model(depth=50,alpha=2,beta=2)
+    blres = blresnet_model(depth=50,alpha=1,beta=2)
     # def params_count(model):
     #     return np.sum([p.numel() for p in model.parameters()]).item()
     # num_params = params_count(blres)
