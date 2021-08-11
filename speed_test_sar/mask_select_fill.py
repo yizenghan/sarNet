@@ -6,7 +6,19 @@ from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 from conv_bn_fuse import fuse_module
-
+import argparse
+    # from op_counter import measure_model
+import time
+import numpy as np
+torch.set_num_threads(1)
+parser = argparse.ArgumentParser(description='PyTorch SARNet')
+args = parser.parse_args()
+args.num_classes = 1000
+args.patch_groups = 2
+args.mask_size = 7
+args.alpha = 2
+args.beta = 1
+args.base_scale = 2
 time_calc = []
 time_extract = []
 time_rearrange = []
@@ -21,6 +33,63 @@ time_layers = []
 time_mask_define = []
 time_prepare_mask = []
 time_ds = []
+mask14 = torch.zeros((1, args.patch_groups, 14, 14))
+if args.patch_groups==2:
+    mask14[:,0,::2,::2] = 1.0
+    mask14[:,0,1::2,1::2] = 1.0
+    mask14[:,1,::2,::2] = 1.0
+    mask14[:,1,1::2,1::2] = 1.0
+elif args.patch_groups==1:
+    mask14[:,0,::2,::2] = 1.0
+    mask14[:,0,1::2,1::2] = 1.0
+elif args.patch_groups==4:
+    mask14[:,0,::2,::2] = 1.0
+    mask14[:,0,1::2,1::2] = 1.0
+    mask14[:,1,::2,::2] = 1.0
+    mask14[:,1,1::2,1::2] = 1.0
+    mask14[:,2,::2,::2] = 1.0
+    mask14[:,2,1::2,1::2] = 1.0
+    mask14[:,3,::2,::2] = 1.0
+    mask14[:,3,1::2,1::2] = 1.0
+
+mask7 = torch.zeros((1, args.patch_groups, 7, 7))
+if args.patch_groups==2:
+    mask7[:,0,::2,::2] = 1.0
+    mask7[:,0,1::2,1::2] = 1.0
+    mask7[:,1,::2,::2] = 1.0
+    mask7[:,1,1::2,1::2] = 1.0
+elif args.patch_groups==1:
+    mask7[:,0,::2,::2] = 1.0
+    mask7[:,0,1::2,1::2] = 1.0
+elif args.patch_groups==4:
+    mask7[:,0,::2,::2] = 1.0
+    mask7[:,0,1::2,1::2] = 1.0
+    mask7[:,1,::2,::2] = 1.0
+    mask7[:,1,1::2,1::2] = 1.0
+    mask7[:,2,::2,::2] = 1.0
+    mask7[:,2,1::2,1::2] = 1.0
+    mask7[:,3,::2,::2] = 1.0
+    mask7[:,3,1::2,1::2] = 1.0
+    
+mask2 = torch.zeros((1, args.patch_groups, 2, 2))
+if args.patch_groups==2:
+    mask2[:,0,::2,::2] = 1.0
+    mask2[:,0,1::2,1::2] = 1.0
+    mask2[:,1,::2,::2] = 1.0
+    mask2[:,1,1::2,1::2] = 1.0
+elif args.patch_groups==1:
+    mask2[:,0,::2,::2] = 1.0
+    mask2[:,0,1::2,1::2] = 1.0
+elif args.patch_groups==4:
+    mask2[:,0,::2,::2] = 1.0
+    mask2[:,0,1::2,1::2] = 1.0
+    mask2[:,1,::2,::2] = 1.0
+    mask2[:,1,1::2,1::2] = 1.0
+    mask2[:,2,::2,::2] = 1.0
+    mask2[:,2,1::2,1::2] = 1.0
+    mask2[:,3,::2,::2] = 1.0
+    mask2[:,3,1::2,1::2] = 1.0
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -383,18 +452,18 @@ class Bottleneck_refine(nn.Module):
             b, c, h, w = x.shape
 
             g = mask.shape[1]
-            m_h = mask.shape[2]
-            mask = mask.view(b,g,m_h,m_h,1,1,1)
+            mask_size = mask.shape[2]
+            mask = mask.view(b,g,mask_size,mask_size,1,1,1)
             # print(x.shape, mask.shape)
             
             channels_per_group = c//g
-            hw_per_patch = h // m_h
+            hw_per_patch = h // mask_size
             
             # corner0 = x[0,:channels_per_group,:hw_per_patch,:hw_per_patch]
             
-            x_ = x.view(b,g,channels_per_group,m_h,hw_per_patch,m_h,hw_per_patch)
+            x_ = x.view(b,g,channels_per_group,mask_size,hw_per_patch,mask_size,hw_per_patch)
             # print(x_.shape)
-            x_ = x_.permute(0,1,3,5,2,4,6)
+            x_ = x_.permute(0,1,3,5,2,4,6)  # b,g,7,7,c//g,h,w
             
             # print(mask[0])
             # corner1 = x_[:,:,:,0,0,0,0]
@@ -402,33 +471,37 @@ class Bottleneck_refine(nn.Module):
             # print((corner0 - corner1).abs().sum())
             # assert(0==1)
             num_non_zero = torch.sum(mask, dim=(2,3)).squeeze()
+            # if not isinstance(num_non_zero, list):
+            #     num_non_zero = [num_non_zero]
             # print(num_non_zero)
             # assert(0==1)
             
             n_pixels_per_patch = channels_per_group * hw_per_patch**2
             n_pixels_per_group = n_pixels_per_patch * num_non_zero
+            
             # print(n_pixels_per_group)
             # assert(0==1)
             # print(x_.shape, mask.shape)
             x_ = torch.masked_select(x_, mask>0)
             # print(x_.shape)
             
-            outs = []
-            input_x = x_[:int(n_pixels_per_group[0])].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch)
+            # outs = []
+            # input_x = 
             c_out_g1 = self.conv1.out_channels // g
             c_out_g2 = self.conv2.out_channels // g
             c_out_g3 = self.conv3.out_channels // g
             # inputs.append(input_x)
             # print(input_x.shape)
 
-            out = calc_one_group(input_x,0, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
-            outs.append(out)
-                
+            out = calc_one_group(x_[:int(n_pixels_per_group[0])].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch),0, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
+            # outs.append(out)
+            output = torch.zeros(b,g,mask_size,mask_size,out.shape[1],out.shape[2],out.shape[3])
+            # print(output[0,0].shape, mask[0,0].shape, out.shape)
+            output[0,0].masked_scatter_(mask[0,0]>0, out)
+            # assert(0==1)
             for i in range(1, g):
-                input_x = x_[int(torch.sum(n_pixels_per_group[:i-1])):int(torch.sum(n_pixels_per_group[:i]))].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch)
-                # inputs.append(input_x)
-                out = calc_one_group(input_x,i, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
-                outs.append(out)
+                out = calc_one_group(x_[int(torch.sum(n_pixels_per_group[:i-1])):int(torch.sum(n_pixels_per_group[:i]))].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch),i, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
+                output[0,i].masked_scatter_(mask[0,i]>0, out)
 
    
             # t4 = time.time()
@@ -452,14 +525,21 @@ class Bottleneck_refine(nn.Module):
             # time_conv.append(t_conv*1000)
             # outs = _rearrange_features(outs, mask, residual)
             # assert(0==1)
-            outs = _rearrange_features(outs, mask)
-
-            outs += residual
+            # outs = _rearrange_features(outs, mask)
+            
+            # b,g,7,7,c/g,h,w -> b,g,c/g, 7,h, 7,w
+            # b,g,channels_per_group,mask_size,hw_per_patch,mask_size,hw_per_patch
+            b,g,mask_size,_,c_per_g,hw_per_patch,_ = output.shape
+            # print(output.shape)
+            # output = output.permute(0,1,4,2,5,3,6).contiguous()
+            # print(output.shape)
+            output = output.reshape(b, g*c_per_g, mask_size*hw_per_patch, mask_size*hw_per_patch)
+            output += residual
             # t6 = time.time()
             # t_rearrange = t6 - t5
             # time_rearrange.append(t_rearrange*1000)
             if self.last_relu:
-                outs = self.relu(outs)
+                output = self.relu(output)
 
             # t7 = time.time()
             # t_total = t7 - t0
@@ -467,7 +547,7 @@ class Bottleneck_refine(nn.Module):
             # print(t_total-t_prepare_mask-t_extract-t_conv-t_rearrange)
             # assert(0==1)
             # time_forward.append(t_total*1000)
-            return outs
+            return output
 
 
     def forward_calc_flops(self, x, mask, inference=False):
@@ -658,66 +738,7 @@ class sarModule(nn.Module):
         _masks = []
         x_refine = x
         refine_ls = []
-        global_mask = torch.zeros((1, self.patch_groups, self.mask_size, self.mask_size))
-        n = int(self.patch_groups / 2)
-
-        # global_mask[:, :, :, :] = 1.0
-        # ### g2 r0.7
-        # if len(self.base_module) == 5:
-        #     global_mask[:, :, :, :1] = 1.0
-        #     global_mask[:, n - 1:n, :, :] = 1.0
-        # else:
-        #     global_mask[:, :, :5, :] = 1.0
-        ### g2 r0.6
-        # if len(self.base_module)==5:
-        #     global_mask[:,:,:1,:]=1.0
-        #     global_mask[:,n:n+1,1:,1:]=1.0
-        # else:
-        #     global_mask[:,:,:4,:]=1.0
-        ### g2 r0.4
-        # if len(self.base_module)==5:
-        #     global_mask[:,:,:1,:1]=1.0
-        #     global_mask[:,n-1:n,:1,0:]=1.0
-        # else:
-        #     global_mask[:,:,:3,:]=1.0
-        ## g2g4 r0.5
-        # if len(self.base_module) == 5:
-        #     global_mask[:, :, :, :1] = 1.0
-        # else:
-        #     global_mask[:, :n, :3, :] = 1.0
-        #     global_mask[:, n:, 3:, :] = 1.0
-        if self.patch_groups==2:
-            global_mask[:,0,::2,::2] = 1.0
-            global_mask[:,0,1::2,1::2] = 1.0
-            global_mask[:,1,::2,::2] = 1.0
-            global_mask[:,1,1::2,1::2] = 1.0
-        else:
-            global_mask[:,0,::2,::2] = 1.0
-            global_mask[:,0,1::2,1::2] = 1.0
-        ### g4 r0.7
-        # if len(self.base_module) == 5:
-        #     global_mask[:, :, :, :1] = 1.0
-        #     global_mask[:, n - 2:n + 1, 1:, 1:] = 1.0
-        # else:
-        #     global_mask[:, :, :5, :] = 1.0
-        ### g4 r0.6
-        # if len(self.base_module) == 5:
-        #     global_mask[:, :, :1, :] = 1.0
-        #     global_mask[:, n - 1:n + 1, 1:, 1:] = 1.0
-        # else:
-        #     global_mask[:, :, :4, :] = 1.0
-        ### g4 r0.4
-        # if len(self.base_module)==5:
-        #     global_mask[:,:,:1,:1]=1.0
-        #     global_mask[:,n-1:n+1,:1,0:]=1.0
-        # else:
-        #     global_mask[:,:,:3,:]=1.0
-
-
-        # ratio = global_mask.sum() / global_mask.numel()
-        # print('ratio:', ratio)
-        # t1 = time.time()
-        # time_mask_define.append((t1-t0) * 1000)
+        
         for i in range(len(self.base_module)):
             x_base = self.base_module[i](x_base) if i != 0 else self.base_module[i](x)
             # t0 = time.time()
@@ -725,7 +746,12 @@ class sarModule(nn.Module):
             # t1 = time.time()
             # time_mask_gen.append((t1-t0) * 1000)
             # mask = torch.zeros((1, self.patch_groups, self.mask_size, self.mask_size))
-            mask = global_mask
+            if self.mask_size==14:
+                mask = mask14
+            elif self.mask_size==7:
+                mask = mask7
+            else:
+                mask = mask2
             _masks.append(mask)
             x_refine = self.refine_module[i](x_refine, mask, inference=inference)
             refine_ls.append(x_refine)
@@ -748,70 +774,18 @@ class sarModule(nn.Module):
         _masks = []
         x_refine = x
         refine_ls = []
-        global_mask = torch.zeros((1, self.patch_groups, self.mask_size, self.mask_size))
-        n = int(self.patch_groups / 2)
-
-        # global_mask[:, :, :, :] = 1.0
-        # ### g2 r0.7
-        # if len(self.base_module) == 5:
-        #     global_mask[:, :, :, :1] = 1.0
-        #     global_mask[:, n - 1:n, :, :] = 1.0
-        # else:
-        #     global_mask[:, :, :5, :] = 1.0
-        ### g2 r0.6
-        # if len(self.base_module)==5:
-        #     global_mask[:,:,:1,:]=1.0
-        #     global_mask[:,n:n+1,1:,1:]=1.0
-        # else:
-        #     global_mask[:,:,:4,:]=1.0
-        ### g2 r0.4
-        # if len(self.base_module)==5:
-        #     global_mask[:,:,:1,:1]=1.0
-        #     global_mask[:,n-1:n,:1,0:]=1.0
-        # else:
-        #     global_mask[:,:,:3,:]=1.0
-        ## g2g4 r0.5
-        # if len(self.base_module) == 5:
-        #     global_mask[:, :, :, :1] = 1.0
-        # else:
-        #     global_mask[:, :n, :3, :] = 1.0
-        #     global_mask[:, n:, 3:, :] = 1.0
-        if self.patch_groups==2:
-            global_mask[:,0,::2,::2] = 1.0
-            global_mask[:,0,1::2,1::2] = 1.0
-            global_mask[:,1,::2,::2] = 1.0
-            global_mask[:,1,1::2,1::2] = 1.0
-        else:
-            global_mask[:,0,::2,::2] = 1.0
-            global_mask[:,0,1::2,1::2] = 1.0
-        ### g4 r0.7
-        # if len(self.base_module) == 5:
-        #     global_mask[:, :, :, :1] = 1.0
-        #     global_mask[:, n - 2:n + 1, 1:, 1:] = 1.0
-        # else:
-        #     global_mask[:, :, :5, :] = 1.0
-        ### g4 r0.6
-        # if len(self.base_module) == 5:
-        #     global_mask[:, :, :1, :] = 1.0
-        #     global_mask[:, n - 1:n + 1, 1:, 1:] = 1.0
-        # else:
-        #     global_mask[:, :, :4, :] = 1.0
-        ### g4 r0.4
-        # if len(self.base_module)==5:
-        #     global_mask[:,:,:1,:1]=1.0
-        #     global_mask[:,n-1:n+1,:1,0:]=1.0
-        # else:
-        #     global_mask[:,:,:3,:]=1.0
-
-
-        # ratio = global_mask.sum() / global_mask.numel()
-        # print('ratio:', ratio)
+        
         for i in range(len(self.base_module)):
             x_base, _flops = self.base_module[i].forward_calc_flops(x_base) if i != 0 else self.base_module[
                 i].forward_calc_flops(x)
             flops += _flops
             mask, _flops = self.mask_gen[i].forward_calc_flops(x_base, temperature=temperature)
-            mask = global_mask
+            if self.mask_size==14:
+                mask = mask14
+            elif self.mask_size==7:
+                mask = mask7
+            else:
+                mask = mask2
             _masks.append(mask)
             flops += _flops
             x_refine, _flops = self.refine_module[i].forward_calc_flops(x_refine, mask, inference=inference)
@@ -969,114 +943,10 @@ t54=[]
 t65=[]
 t76=[]
 
-def _extract_from_mask(x, mask):
-    # t1 = time.time()
-    pad = nn.ConstantPad2d(padding=(1, 1, 1, 1), value=0.0)
-    feats = []
-
-    b, c_f, h_f, w_f = x.size()
-    _, g, h, w = mask.size()
-
-    x = pad(x)
-    h_interval = h_f // h
-    w_interval = w_f // w
-    c_interval = c_f // g
-    feat = []
-    kk = 0
-
-    a = np.flatnonzero(mask[0, :, :, :])
-    l = a.shape[0]
-    # t2 = time.time()
-    # t21.append((t2 - t1) * 1000)
-    for n in range(l):
-        k = a[n] // (h*w)
-        # t3 = time.time()
-        if kk != k and n != 0:
-            feat = torch.stack(feat)
-            # t4 = time.time()
-            # t43.append((t4 - t3) * 1000)
-            feats.append(feat)
-            feat = []
-        # t4 = time.time()
-        # t43.append((t4 - t3) * 1000)
-        q = a[n] % (h*w)
-        i = q // w
-        j = q % h
-        h_1 = i * h_interval
-        w_1 = j * w_interval
-        # t5 = time.time()
-        # t54.append((t5 - t3) * 1000)
-        tp = x[0, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval + 2, w_1:w_1 + w_interval + 2]
-        feat.append(tp)
-        kk = k
-        # t6 = time.time()
-        # t65.append((t6 - t5) * 1000)
-        if n == l-1:
-            feat = torch.stack(feat)
-            feats.append(feat)
-            feat = []
-        # t7 = time.time()
-        # t76.append((t7 - t6) * 1000)
-
-    # print('0', feats[0].size())
-    # print('1', feats[1].size())
-    # print('2', feats[2].size())
-    # print(feats[3].size())
-    # print(len(feats))
-    # print('------')
-    return feats
-
-
-# def _rearrange_features(feat, mask, residual):
-#     t1 = time.time()
-#     b, c_f, h_f, w_f = feat[0].size()
-#     _, c, h, w = mask.size()
-
-#     h_interval = h_f
-#     w_interval = w_f
-#     c_interval = c_f
-#     # x = torch.zeros(1, c * c_f, h * h_f, w * w_f)
-
-#     q = 0
-#     kk = 0
-#     pp = 0
-
-#     a = np.flatnonzero(mask[0, :, :, :])
-#     l = a.shape[0]
-#     t2 = time.time()
-#     t21.append((t2 - t1) * 1000)
-#     for n in range(l):
-#         t3 = time.time()
-#         k = a[n] // (h*w)
-#         if kk != k and n != 0:
-#             # if q >= mask[0, k, :, :].sum():
-#             q = 0
-#             pp += 1
-#         t4 = time.time()
-#         t43.append((t4 - t3) * 1000)
-#         p = a[n] % (h*w)
-#         i = p // w
-#         j = p % h
-#         h_1 = i * h_interval
-#         w_1 = j * w_interval
-#         t5 = time.time()
-#         t54.append((t5 - t4) * 1000)
-#         t5 = time.time()
-#         residual[0, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval, w_1:w_1 + w_interval] += feat[pp][q] # + residual[:, k * c_interval:(k + 1) * c_interval, h_1:h_1 + h_interval, w_1:w_1 + w_interval]
-#         t6 = time.time()
-#         t65.append((t6 - t5) * 1000)
-#         q += 1
-#         kk = k
-#         t7 = time.time()
-#         t76.append((t7 - t6) * 1000)
-
-#     return residual
-
-
 def _rearrange_features(feat, mask):
     t1 = time.time()
     b, c_f, h_f, w_f = feat[0].size()
-    # print(mask.size())
+    # 
     _, c, h, w,_,_,_ = mask.size()
 
     h_interval = h_f
@@ -1117,6 +987,10 @@ def _rearrange_features(feat, mask):
         kk = k
         t7 = time.time()
         t76.append((t7 - t6) * 1000)
+    
+    # b, g, mask_size, _,_,_,_ = mask.size()
+    # print(feat[0].size(), mask.size())
+    # assert(0==1)
 
     return x
 
@@ -1166,26 +1040,16 @@ def sar_resnet50_alphaBase_4stage_imgnet(args):
 
 
 if __name__ == "__main__":
-    import argparse
-    # from op_counter import measure_model
-    import time
-    import numpy as np
-    torch.set_num_threads(1)
-    parser = argparse.ArgumentParser(description='PyTorch SARNet')
-    args = parser.parse_args()
-    args.num_classes = 1000
-    args.patch_groups = 2
-    args.mask_size = 7
-    args.alpha = 2
-    args.beta = 1
-    args.base_scale = 2
+    
     sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
     # print(sar_res)
     sar_res.eval()
     with torch.no_grad():
-        # print(sar_res)
+        print(sar_res)
         x = torch.rand(1, 3, 224, 224)
         fuse_module(sar_res)
+        ls1, y2, _masks2 = sar_res(x, inference=True, temperature=1e-8)
+        print('speed test start')
         a=[]
         b=[]
         c=[]
@@ -1208,7 +1072,9 @@ if __name__ == "__main__":
         t_prepare_mask=[]
         t_downsample=[]
         for i in range(10):
+            t = time.time()
             _, y2, _masks = sar_res(x,inference=True,temperature=1e-8)
+            print(time.time() - t)
         for i in range(100):
             t = time.time()
             _, y1, _masks, flops = sar_res.forward_calc_flops(x, inference=False, temperature=1e-8)
