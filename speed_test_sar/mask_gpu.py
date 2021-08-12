@@ -14,7 +14,7 @@ import numpy as np
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 args = parser.parse_args()
 args.num_classes = 1000
-args.patch_groups = 2
+args.patch_groups = 4
 args.mask_size = 7
 args.alpha = 2
 args.beta = 1
