@@ -45,3 +45,5 @@ from .mobilenet_v2 import *
 
 from .mobilenet_v2_sar_3mask import *
 from .mobilenet_v2_sar_fuseDW import *
+
+from .mobilenet_v2_sar_res_3mask import *

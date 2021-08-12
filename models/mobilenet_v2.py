@@ -49,7 +49,7 @@ class InvertedResidual(nn.Module):
 
         hidden_dim = int(round(inp * expand_ratio))
         self.use_res_connect = self.stride == 1 and inp == oup
-
+        
         layers = []
         if expand_ratio != 1:
             # pw
@@ -64,6 +64,7 @@ class InvertedResidual(nn.Module):
         self.conv = nn.Sequential(*layers)
 
     def forward(self, x):
+        print(self.use_res_connect)
         # print(x.shape)
         if self.use_res_connect:
             return x + self.conv(x)
