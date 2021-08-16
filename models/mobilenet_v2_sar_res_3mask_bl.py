@@ -458,13 +458,13 @@ class SARModule(nn.Module):
         for i in range(len(self.base_branch)):
             
             x_base, _flops = self.base_branch[i].forward_calc_flops(x) if i==0 else self.base_branch[i].forward_calc_flops(x_base)
-            print('base shape', x_base.shape)
+            # print('base shape', x_base.shape)
             flops += _flops
             mask, _flops = self.mask_gen[i].forward_calc_flops(x_base, temperature=temperature)
             _masks.append(mask)
             flops += _flops
             x_refine, _flops = self.refine_branch[i].forward_calc_flops(x_refine, mask) 
-            print('refine shape', x_refine.shape)
+            # print('refine shape', x_refine.shape)
             # print(self.refine_branch[i].use_res_connect)
             flops += _flops
         if self.alpha != 1:
@@ -567,7 +567,7 @@ class MobileNetV2(nn.Module):
 
             for i in range(n):
                 stride = s if i == 0 else 1
-                print(stride)
+                # print(stride)
                 block_last2.append(block(input_channel, output_channel, stride=stride, expand_ratio=t))
                 input_channel = output_channel
         # assert(0==1)
@@ -689,7 +689,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     args.num_classes = 1000
-    args.patch_groups = 2
+    args.patch_groups = 1
     args.alpha = 1
     args.beta = 1
     net = mobilenet_v2_width10_sar_res_3mask_bl(args)
