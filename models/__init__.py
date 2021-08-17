@@ -35,7 +35,7 @@ from .sar_resnet_imgnet4stage_alphaBase import *
 
 from .sar_resnet_1attFuse import *
 from .sar_resnet_2attFuse import *
-# from .sar_resnext_1attFuse import *
+from .sar_resnext_1attFuse import *
 
 from .sar_resnet_1attFuse_dilated import *
 

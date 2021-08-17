@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from gumbel_softmax import GumbleSoftmax
+from .gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -65,7 +65,7 @@ class Bottleneck(nn.Module):
         
         self.stride = stride
         self.last_relu = last_relu
-        print(inplanes, planes // 2, planes)
+        # print(inplanes, planes // 2, planes)
 
     def forward(self, x):
         if self.first_downsample is not None:
@@ -426,15 +426,29 @@ class sarModule(nn.Module):
         return out, _masks, flops
 
 class sarResNet(nn.Module):
-    def __init__(self, block_base, block_refine, layers, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1, beta=1, base_scale=2):
+    def __init__(self, block_base, block_refine, layers, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1, beta=1, base_scale=2, use_stem=False):
         num_channels = [int(64*width), int(128*width), int(256*width), 512]
         # print(num_channels)
         self.inplanes = 64
         super(sarResNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, num_channels[0], kernel_size=7, stride=2, padding=3,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(num_channels[0])
-        self.relu = nn.ReLU(inplace=True)
+        self.use_stem = use_stem
+        if use_stem:
+            self.stem = nn.Sequential(
+                nn.Conv2d(3, num_channels[0] // 2, kernel_size=3, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(num_channels[0]//2),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(num_channels[0] // 2, num_channels[0] // 2, kernel_size=3, stride=1, padding=1, bias=False),
+                nn.BatchNorm2d(num_channels[0]//2),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(num_channels[0] // 2, num_channels[0], kernel_size=3, stride=1, padding=1, bias=False),
+                nn.BatchNorm2d(num_channels[0]),
+                nn.ReLU(inplace=True),
+            )
+        else:
+            self.conv1 = nn.Conv2d(3, num_channels[0], kernel_size=7, stride=2, padding=3,
+                                bias=False)
+            self.bn1 = nn.BatchNorm2d(num_channels[0])
+            self.relu = nn.ReLU(inplace=True)
 
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = sarModule(block_base, block_refine, num_channels[0], num_channels[0]*block_base.expansion, 
@@ -481,9 +495,12 @@ class sarResNet(nn.Module):
         return nn.ModuleList(layers)
 
     def forward(self, x, temperature=1.0, inference=False):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
+        if self.use_stem:
+            x = self.stem(x)
+        else:
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu(x)
         x = self.maxpool(x)
         # print('before layer 1:', x.shape)
         _masks = []
@@ -508,10 +525,16 @@ class sarResNet(nn.Module):
     def forward_calc_flops(self, x, temperature=1.0, inference=False):
         flops = 0
         c_in = x.shape[1]
-        x = self.conv1(x)
-        flops += c_in * x.shape[1] * x.shape[2] * x.shape[3] * self.conv1.weight.shape[2]*self.conv1.weight.shape[3]
-        x = self.bn1(x)
-        x = self.relu(x)
+
+        if self.use_stem:
+            # print('fuck')
+            x = self.stem(x)
+            flops += (c_in * x.shape[1]//2 +  x.shape[1]**2//4 +  x.shape[1]**2//2) * x.shape[2] * x.shape[3] * 9
+        else:
+            x = self.conv1(x)
+            flops += c_in * x.shape[1] * x.shape[2] * x.shape[3] * self.conv1.weight.shape[2]*self.conv1.weight.shape[3]
+            x = self.bn1(x)
+            x = self.relu(x)
 
         x = self.maxpool(x)
         flops += x.numel() / x.shape[0] * 9
@@ -542,22 +565,22 @@ class sarResNet(nn.Module):
 
         return x, _masks, flops
 
-def sar_resnet_imgnet_alphaBase(depth, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1, beta=1, base_scale=2):
+def sar_resnet_imgnet_alphaBase(depth, num_classes=1000, patch_groups=1, mask_size=7, width=1.0, alpha=1, beta=1, base_scale=2,use_stem=False):
     layers = {
-        34: [3, 4, 6, 3],
+        # 34: [3, 4, 6, 3],
         50: [3, 4, 6, 3],
         101: [4, 8, 18, 3],
         152: [5, 12, 30, 3]
     }[depth]
-    block = BasicBlock if depth == 34 else Bottleneck
-    block_refine = BasicBlock_refine if depth == 34 else Bottleneck_refine
+    block = Bottleneck
+    block_refine = Bottleneck_refine
     model = sarResNet(block_base=block, block_refine=block_refine, layers=layers, 
                       num_classes=num_classes, patch_groups=patch_groups, mask_size=mask_size, width=width, 
-                      alpha=alpha, beta=beta, base_scale=base_scale)
+                      alpha=alpha, beta=beta, base_scale=base_scale,use_stem=use_stem)
     return model
 
 def sar_resnext50_32x4_1attFuse(args):
-    return sar_resnet_imgnet_alphaBase(depth=50, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale)
+    return sar_resnet_imgnet_alphaBase(depth=50, num_classes=args.num_classes, patch_groups=args.patch_groups, mask_size=args.mask_size, alpha=args.alpha, beta=args.beta, base_scale=args.base_scale, use_stem=args.use_stem)
 
 
 if __name__ == "__main__":
@@ -566,18 +589,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
-    args.patch_groups = 4
+    args.patch_groups = 2
     args.mask_size = 7
     args.alpha = 1
     args.beta = 1
-    args.base_scale = 4
+    args.base_scale = 2
+    args.use_stem = False
     sar_res = sar_resnext50_32x4_1attFuse(args)
     # assert(0==1)
     # print(sar_res)
 
     with torch.no_grad():
         
-        print(sar_res)
+        # print(sar_res)
         x = torch.rand(1,3,224,224)
         sar_res.eval()
 
