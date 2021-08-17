@@ -10,11 +10,11 @@ import argparse
     # from op_counter import measure_model
 import time
 import numpy as np
-# torch.set_num_threads(1)
+torch.set_num_threads(1)
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 args = parser.parse_args()
 args.num_classes = 1000
-args.patch_groups = 4
+args.patch_groups = 2
 args.mask_size = 7
 args.alpha = 2
 args.beta = 1
@@ -196,36 +196,114 @@ class BasicBlock_refine(nn.Module):
         residual = x
         if self.downsample is not None:  # skip connection before mask
             residual = self.downsample(x)
+        if not inference:
+            b, c, h, w = x.shape
+            g = mask.shape[1]
+            m_h = mask.shape[2]
+            mask1 = mask.clone()
+            if g > 1:
+                mask1 = mask1.unsqueeze(1).repeat(1, c // g, 1, 1, 1).transpose(1, 2).reshape(b, c, m_h, m_h)
 
-        b, c, h, w = x.shape
-        g = mask.shape[1]
-        m_h = mask.shape[2]
-        mask1 = mask.clone()
-        if g > 1:
-            mask1 = mask1.unsqueeze(1).repeat(1, c // g, 1, 1, 1).transpose(1, 2).reshape(b, c, m_h, m_h)
+            mask1 = F.interpolate(mask1, size=(h, w))
+            # print(mask1.shape, x.shape)
+            output = x * mask1
+            # print(mask1)
+            output = self.conv1(output)
+            output = self.bn1(output)
+            output = self.relu(output)
 
-        mask1 = F.interpolate(mask1, size=(h, w))
-        # print(mask1.shape, x.shape)
-        out = x * mask1
-        # print(mask1)
-        out = self.conv1(out)
-        out = self.bn1(out)
-        out = self.relu(out)
+            c_output = output.shape[1]
+            # print(mask1.shape, mask.shape)
+            mask2 = mask.clone()
+            if g > 1:
+                mask2 = mask2.unsqueeze(1).repeat(1, c_output // g, 1, 1, 1).transpose(1, 2).reshape(b, c_output, m_h, m_h)
+            mask2 = F.interpolate(mask2, size=(h, w))
+            # print(mask2.shape, output.shape)
+            output = output * mask2
+            output = self.conv2(output)
+            output = self.bn2(output)
+            output += residual
+            if self.last_relu:
+                output = self.relu(output)
+        else:
+            if mask.sum() == 0.0:
+                out = self.bn2(torch.zeros(residual.shape))
+                out += residual
 
-        c_out = out.shape[1]
-        # print(mask1.shape, mask.shape)
-        mask2 = mask.clone()
-        if g > 1:
-            mask2 = mask2.unsqueeze(1).repeat(1, c_out // g, 1, 1, 1).transpose(1, 2).reshape(b, c_out, m_h, m_h)
-        mask2 = F.interpolate(mask2, size=(h, w))
-        # print(mask2.shape, out.shape)
-        out = out * mask2
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out += residual
-        if self.last_relu:
-            out = self.relu(out)
-        return out
+                if self.last_relu:
+                    out = self.relu(out)
+                return out
+
+            b, c, h, w = x.shape
+
+            g = mask.shape[1]
+            mask_size = mask.shape[2]
+            # print(mask.shape)
+            mask = mask.view(b,g,mask_size,mask_size,1,1,1)
+            # print(x.shape, mask.shape)
+            
+            channels_per_group = c//g
+            hw_per_patch = h // mask_size
+            
+            # corner0 = x[0,:channels_per_group,:hw_per_patch,:hw_per_patch]
+            
+            x_ = x.view(b,g,channels_per_group,mask_size,hw_per_patch,mask_size,hw_per_patch)
+            # print(x_.shape)
+            x_ = x_.permute(0,1,3,5,2,4,6)  # b,g,7,7,c//g,h,w
+            
+            # print(mask[0])
+            # corner1 = x_[:,:,:,0,0,0,0]
+            
+            # print((corner0 - corner1).abs().sum())
+            # assert(0==1)
+            num_non_zero = torch.sum(mask, dim=(2,3)).squeeze()
+            # if not isinstance(num_non_zero, list):
+            #     num_non_zero = [num_non_zero]
+            # print(num_non_zero)
+            # assert(0==1)
+            
+            n_pixels_per_patch = channels_per_group * hw_per_patch**2
+            n_pixels_per_group = n_pixels_per_patch * num_non_zero
+            
+            # print(n_pixels_per_group)
+            # assert(0==1)
+            # print(x_.shape, mask.shape)
+            x_ = torch.masked_select(x_, mask>0)
+            # print(x_.shape)
+            
+            # outs = []
+            # input_x = 
+            c_out_g1 = self.conv1.out_channels // g
+            c_out_g2 = self.conv2.out_channels // g
+            # c_out_g3 = self.conv3.out_channels // g
+            # inputs.append(input_x)
+            # print(input_x.shape)
+
+            out = calc_one_group_basic(x_[:int(n_pixels_per_group[0])].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch),0, self.conv1, self.conv2, c_out_g1,c_out_g2,self.relu)
+            # outs.append(out)
+            output = torch.zeros(b,g,mask_size,mask_size,out.shape[1],out.shape[2],out.shape[3]).cuda(0)
+            # print(output[0,0].shape, mask[0,0].shape, out.shape)
+            output[0,0].masked_scatter_(mask[0,0]>0, out)
+            # assert(0==1)
+            for i in range(1, g):
+                out = calc_one_group_basic(x_[int(torch.sum(n_pixels_per_group[:i-1])):int(torch.sum(n_pixels_per_group[:i]))].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch),i, self.conv1, self.conv2, c_out_g1,c_out_g2,self.relu)
+                output[0,i].masked_scatter_(mask[0,i]>0, out)
+                
+                
+            b,g,mask_size,_,c_per_g,hw_per_patch,_ = output.shape
+            
+            # output = output.permute(0,1,4,2,5,3,6).contiguous()
+            # print(output.shape)
+            output = output.reshape(b, g*c_per_g, mask_size*hw_per_patch, mask_size*hw_per_patch)
+            # print(output.shape, residual.shape)
+            # assert(0==1)
+            output += residual
+            # t6 = time.time()
+            # t_rearrange = t6 - t5
+            # time_rearrange.append(t_rearrange*1000)
+            if self.last_relu:
+                output = self.relu(output)
+        return output
 
     def forward_calc_flops(self, x, mask, inference=False):
         # print('refine bottleneck, input shape: ', x.shape)
@@ -495,7 +573,7 @@ class Bottleneck_refine(nn.Module):
 
             out = calc_one_group(x_[:int(n_pixels_per_group[0])].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch),0, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
             # outs.append(out)
-            output = torch.zeros(b,g,mask_size,mask_size,out.shape[1],out.shape[2],out.shape[3],device=x.device)
+            output = torch.zeros(b,g,mask_size,mask_size,out.shape[1],out.shape[2],out.shape[3]).cuda(0)
             # print(output[0,0].shape, mask[0,0].shape, out.shape)
             output[0,0].masked_scatter_(mask[0,0]>0, out)
             # assert(0==1)
@@ -1027,6 +1105,13 @@ def calc_one_group(x,i,conv1,conv2,conv3,c_out_g1,c_out_g2,c_out_g3,relu):
     # print(out.size())
     return out
 
+def calc_one_group_basic(x,i,conv1,conv2,c_out_g1,c_out_g2,relu):
+    
+    out = F.conv2d(x, conv1.weight[i * c_out_g1:(i + 1) * c_out_g1], padding=1)
+    out = relu(out)
+    out = F.conv2d(out, conv2.weight[i * c_out_g2:(i + 1) * c_out_g2], padding=1)
+    return out
+
 def sar_resnet34_alphaBase_4stage_imgnet(args):
     return sar_resnet_imgnet_alphaBase(depth=34, num_classes=args.num_classes, patch_groups=args.patch_groups,
                                        mask_size=args.mask_size, alpha=args.alpha, beta=args.beta,
@@ -1041,8 +1126,7 @@ def sar_resnet50_alphaBase_4stage_imgnet(args):
 
 if __name__ == "__main__":
     
-    sar_res = sar_resnet50_alphaBase_4stage_imgnet(args)
-    sar_res = sar_res.cuda(0)
+    sar_res = sar_resnet34_alphaBase_4stage_imgnet(args).cuda(0)
     # print(sar_res)
     sar_res.eval()
     with torch.no_grad():
@@ -1128,40 +1212,40 @@ if __name__ == "__main__":
             t76 = []
             print(i)
 
-        print('bottleneck_group:', np.mean(a))
+        # print('bottleneck_group:', np.mean(a))
         print('total_group', np.mean(b))
         print('-------------------------------')
-        print('time_stem:', np.mean(t_stem))
-        print('time_base_bottleneck:', np.mean(t_base_branch))
-        print('time_refine_bottleneck:', np.mean(f))
-        print('time_downsample_in_refine:', np.mean(t_downsample))
-        print('time_mask_prepare_in_refine:', np.mean(t_prepare_mask))
-        print('time_mask_gen:', np.mean(t_mask_gen))
-        print('time_mask_define', np.mean(t_mask_define))
-        print('time_trans_fuse:', np.mean(t_trans_fuse))
-        print('time_tail:', np.mean(t_tail))
-        print('time_layers', np.mean(t_layers))
-        print('total_time', np.mean(g), np.std(g))
-        print('-------------------------------')
-        print('time_refine_bottleneck:', np.mean(f))
-        print('time_downsample_in_refine:', np.mean(t_downsample))
-        print('time_mask_prepare_in_refine:', np.mean(t_prepare_mask))
-        print('time_extract:', np.mean(c))
-        print('time_conv:', np.mean(d))
-        print('time_rearrange:', np.mean(e))
-        print('-------------------------------')
-        print('t21_in_rearrange', np.mean(h))
-        print('t43_in_rearrange', np.mean(j))
-        print('t54_in_rearrange', np.mean(k))
-        print('t65_in_rearrange', np.mean(l))
-        print('t76_in_rearrange', np.mean(m))
-        print('-------------------------------')
+        # print('time_stem:', np.mean(t_stem))
+        # print('time_base_bottleneck:', np.mean(t_base_branch))
+        # print('time_refine_bottleneck:', np.mean(f))
+        # print('time_downsample_in_refine:', np.mean(t_downsample))
+        # print('time_mask_prepare_in_refine:', np.mean(t_prepare_mask))
+        # print('time_mask_gen:', np.mean(t_mask_gen))
+        # print('time_mask_define', np.mean(t_mask_define))
+        # print('time_trans_fuse:', np.mean(t_trans_fuse))
+        # print('time_tail:', np.mean(t_tail))
+        # print('time_layers', np.mean(t_layers))
+        print('total_time_ours', np.mean(g), np.std(g))
+        # print('-------------------------------')
+        # print('time_refine_bottleneck:', np.mean(f))
+        # print('time_downsample_in_refine:', np.mean(t_downsample))
+        # print('time_mask_prepare_in_refine:', np.mean(t_prepare_mask))
+        # print('time_extract:', np.mean(c))
+        # print('time_conv:', np.mean(d))
+        # print('time_rearrange:', np.mean(e))
+        # print('-------------------------------')
+        # print('t21_in_rearrange', np.mean(h))
+        # print('t43_in_rearrange', np.mean(j))
+        # print('t54_in_rearrange', np.mean(k))
+        # print('t65_in_rearrange', np.mean(l))
+        # print('t76_in_rearrange', np.mean(m))
+        # print('-------------------------------')
 
-        ls, y1, _masks1, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
-        ls1, y2, _masks2 = sar_res(x, inference=True, temperature=1e-8)
+        # ls, y1, _masks1, flops = sar_res.forward_calc_flops(x,inference=False,temperature=1e-8)
+        # ls1, y2, _masks2 = sar_res(x, inference=True, temperature=1e-8)
 
-        print((y1-y2).abs().sum())
-        print((ls[0]-ls1[0]).abs().sum())
+        # print((y1-y2).abs().sum())
+        # print((ls[0]-ls1[0]).abs().sum())
 
         # t_sim = []
         # for i in range(100):
