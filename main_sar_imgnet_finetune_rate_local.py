@@ -71,6 +71,8 @@ parser.add_argument('--print_freq', '-p', default=200, type=int,
                     metavar='N', help='print frequency (default: 10)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
+parser.add_argument('--finetune_from', default=None, type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
 parser.add_argument('--evaluate', action='store_true',
                     help='evaluate model on validation set (default: false)')
 parser.add_argument('--evaluate_from', default=None, type=str, metavar='PATH',
@@ -163,7 +165,7 @@ val_FLOPs = []
 args.temp = args.t0
 
 def main():
-    check_gpu_memory()
+    # check_gpu_memory()
     str_t0 = str(args.t0).replace('.', '_')
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')
@@ -327,6 +329,22 @@ def main_worker(gpu, ngpus_per_node, args):
     
     # optionally resume from a checkpoint
     # args.gpu = None
+    if args.finetune_from is not None:
+        if os.path.isfile(args.finetune_from):
+            print("=> loading checkpoint '{}'".format(args.finetune_from))
+            if args.gpu is None:
+                checkpoint = torch.load(args.finetune_from)
+            else:
+                # Map model to be loaded to specified single gpu.
+                loc = 'cuda:{}'.format(args.gpu)
+                checkpoint = torch.load(args.finetune_from, map_location=loc)
+            
+            model.load_state_dict(checkpoint['state_dict'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.finetune_from))
+
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
