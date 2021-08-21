@@ -216,7 +216,82 @@ def get_hyperparams(args, test_code=0):
             ### lr scheduler
             args.scheduler = 'cosine'
             args.warmup_epoch = 0
-            args.warmup_lr = 0.04 # see RegNet pycls/core/config.py _C.OPTIM.WARMUP_FACTOR = 0.1
+            args.warmup_lr = 0.0 # see RegNet pycls/core/config.py _C.OPTIM.WARMUP_FACTOR = 0.1
+            ### Mixup
+            args.mixup = 0.0
+            return args
+        
+        elif args.hyperparams_set_index == 4277: # sar-mobilenet-v2
+            args.epochs = 50
+            args.start_eval_epoch = 0
+            args.batch_size = 512
+            ### data transform
+            args.autoaugment = False
+            args.colorjitter = False
+            args.change_light = True
+            ### optimizer
+            args.optimizer = 'SGD'
+            args.lr = 0.003*(args.batch_size/256)
+            args.momentum = 0.9
+            args.weigh_decay_apply_on_all = True  # TODO: weight decay apply on which params
+            args.weight_decay = 4e-5
+            args.nesterov = True
+            ### criterion
+            args.labelsmooth = 0
+            ### lr scheduler
+            args.scheduler = 'cosine'
+            args.warmup_epoch = 0
+            args.warmup_lr = 0.0 # see RegNet pycls/core/config.py _C.OPTIM.WARMUP_FACTOR = 0.1
+            ### Mixup
+            args.mixup = 0.0
+            return args
+        
+        elif args.hyperparams_set_index == 41777: # sar-mobilenet-v2
+            args.epochs = 100
+            args.start_eval_epoch = 0
+            args.batch_size = 512
+            ### data transform
+            args.autoaugment = False
+            args.colorjitter = False
+            args.change_light = True
+            ### optimizer
+            args.optimizer = 'SGD'
+            args.lr = 0.005*(args.batch_size/256)
+            args.momentum = 0.9
+            args.weigh_decay_apply_on_all = True  # TODO: weight decay apply on which params
+            args.weight_decay = 4e-5
+            args.nesterov = True
+            ### criterion
+            args.labelsmooth = 0
+            ### lr scheduler
+            args.scheduler = 'cosine'
+            args.warmup_epoch = 0
+            args.warmup_lr = 0.0 # see RegNet pycls/core/config.py _C.OPTIM.WARMUP_FACTOR = 0.1
+            ### Mixup
+            args.mixup = 0.0
+            return args
+        
+        elif args.hyperparams_set_index == 42777: # sar-mobilenet-v2
+            args.epochs = 100
+            args.start_eval_epoch = 0
+            args.batch_size = 512
+            ### data transform
+            args.autoaugment = False
+            args.colorjitter = False
+            args.change_light = True
+            ### optimizer
+            args.optimizer = 'SGD'
+            args.lr = 0.003*(args.batch_size/256)
+            args.momentum = 0.9
+            args.weigh_decay_apply_on_all = True  # TODO: weight decay apply on which params
+            args.weight_decay = 4e-5
+            args.nesterov = True
+            ### criterion
+            args.labelsmooth = 0
+            ### lr scheduler
+            args.scheduler = 'cosine'
+            args.warmup_epoch = 0
+            args.warmup_lr = 0.0 # see RegNet pycls/core/config.py _C.OPTIM.WARMUP_FACTOR = 0.1
             ### Mixup
             args.mixup = 0.0
             return args
@@ -623,6 +698,31 @@ def get_hyperparams(args, test_code=0):
 
         elif args.hyperparams_set_index == 23300: # sarResNet, use label smooth, wmup
             args.epochs = 200
+            args.start_eval_epoch = 0
+            args.batch_size = 256*4
+            ### data transform
+            args.autoaugment = False
+            args.colorjitter = True
+            args.change_light = True
+            ### optimizer
+            args.optimizer = 'SGD'
+            args.lr = 0.1 * args.batch_size / 256
+            args.momentum = 0.9
+            args.weigh_decay_apply_on_all = True  # TODO: weight decay apply on which params
+            args.weight_decay = 1e-4
+            args.nesterov = True
+            ### criterion
+            args.labelsmooth = 0.1
+            ### lr scheduler
+            args.scheduler = 'cosine'
+            args.warmup_epoch = 5
+            args.warmup_lr = args.lr/4
+            ### Mixup
+            args.mixup = 0.0
+            return args
+        
+        elif args.hyperparams_set_index == 23377: # sarResNet, use label smooth, wmup
+            args.epochs = 300
             args.start_eval_epoch = 0
             args.batch_size = 256*4
             ### data transform

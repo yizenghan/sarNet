@@ -38,6 +38,7 @@ import torchvision.datasets as datasets
 import torchvision.models as pytorchmodels
 
 from queue_jump import check_gpu_memory
+import torch.nn.functional as F
 
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 parser.add_argument('--config', help='train config file path')
@@ -133,6 +134,11 @@ parser.add_argument('--ta_last_epoch', default=60, type=int)
 parser.add_argument('--use_amp', type=int, default=0,
                     help='apex')
 
+
+parser.add_argument('--T_kd', default=4.0, type=float, metavar='M', help='T for kd loss')
+parser.add_argument('--alpha_kd', default=0.5, type=float, metavar='M', help='alpha for kd loss')
+
+
 args = parser.parse_args()
 args.train_on_cloud = False
 # args.dynamic_rate = True if args.dynamic_rate > 0 else False
@@ -170,7 +176,7 @@ def main():
     str_lambda = str(args.lambda_act).replace('.', '_')
     str_ta = str(args.target_rate).replace('.', '_')
     str_t_last = str(args.t_last).replace('.', '_')
-    save_path = f'{args.train_url}_ImageNet/{args.arch_config}_OptimRate/g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}/'
+    save_path = f'{args.train_url}_ImageNet/{args.arch_config}_OptimRate/g{args.patch_groups}_a{args.alpha}b{args.beta}_s{args.base_scale}/t0_{str_t0}_tLast{str_t_last}_tempScheduler_{args.temp_scheduler}_target{str_ta}_optimizeFromEpoch{args.ta_begin_epoch}to{args.ta_last_epoch}_dr{args.dynamic_rate}_lambda_{str_lambda}_alphaKD{args.alpha_kd}_T_KD{args.T_kd}/'
     args.train_url = save_path
     if not args.train_on_cloud:
         if not os.path.exists(args.train_url):
@@ -260,7 +266,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # model = pytorchmodels.resnet50(pretrained=False)
     model_type = args.arch_config
     model = eval(f'models.{args.arch}.{args.arch_config}')(args)
-
+    model_teacher = eval(f'models.{args.arch}.{args.arch_config}')(args)
     print('Model Struture:', str(model))
     if args.train_on_cloud:
         with mox.file.File(args.train_url+'model_arch.txt', "w") as f:
@@ -270,6 +276,7 @@ def main_worker(gpu, ngpus_per_node, args):
             f.write(str(model))
     ### Calculate FLOPs & Param
     model.eval()
+    
     rand_inp = torch.rand(1, 3, 224,224)
     _, _, args.full_flops = model.forward_calc_flops(rand_inp, temperature=1e-8)
     args.full_flops /= 1e9
@@ -302,6 +309,7 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.gpu is not None:
             torch.cuda.set_device(args.gpu)
             model.cuda(args.gpu)
+            model_teacher.cuda(args.gpu)
             if args.use_amp:
                 model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
             # When using a single GPU per process and per
@@ -310,21 +318,26 @@ def main_worker(gpu, ngpus_per_node, args):
             args.batch_size = int(args.batch_size / ngpus_per_node)
             args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+            model_teacher = torch.nn.parallel.DistributedDataParallel(model_teacher, device_ids=[args.gpu])
         else:
             model.cuda()
+            model_teacher.cuda()
             if args.use_amp:
                 model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
             # DistributedDataParallel will divide and allocate batch_size to all
             # available GPUs if device_ids are not set
             model = torch.nn.parallel.DistributedDataParallel(model)
+            model_teacher = torch.nn.parallel.DistributedDataParallel(model_teacher)
     elif args.gpu is not None:
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
+        model_teacher = model_teacher.cuda(args.gpu)
         if args.use_amp:
             model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
     else:
         # DataParallel will divide and allocate batch_size to all available GPUs
         model = torch.nn.DataParallel(model).cuda()
+        model_teacher = torch.nn.DataParallel(model_teacher).cuda()
 
     
     # optionally resume from a checkpoint
@@ -340,6 +353,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 checkpoint = torch.load(args.finetune_from, map_location=loc)
             
             model.load_state_dict(checkpoint['state_dict'])
+            model_teacher.load_state_dict(checkpoint['state_dict'])
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.finetune_from, checkpoint['epoch']))
         else:
@@ -442,7 +456,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print(f'Temperature: {args.temp}')
        
         tr_acc1, tr_acc5, tr_loss, lr = \
-            train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate)
+            train(train_loader, model, model_teacher, criterion, optimizer, scheduler, epoch, args, target_rate)
 
         if epoch % 10 == 0 or epoch >= args.start_eval_epoch:
             ### Evaluate on validation set
@@ -511,7 +525,7 @@ def main_worker(gpu, ngpus_per_node, args):
     return
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, target_rate):
+def train(train_loader, model, model_teacher, criterion, optimizer, scheduler, epoch, args, target_rate):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses_cls = AverageMeter('Loss_cls', ':.4e')
@@ -529,7 +543,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         prefix="Epoch: [{}/{}]".format(epoch, args.epochs))
 
     model.train()
-
+    model_teacher.eval()
     end = time.time()
     for i, (input, target) in enumerate(train_loader):
 
@@ -570,10 +584,15 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, tar
         act_rate = torch.mean(act_rate / len(_masks))
         loss_act = args.lambda_act * torch.mean(loss_act/len(_masks))
         # print(target_rate, act_rate, loss_act, args.lambda_act)
-        if args.dynamic_rate > 0:
-            loss = loss_cls + loss_act
-        else:
-            loss = loss_cls + loss_act if epoch >= args.ta_begin_epoch else loss_cls
+        
+        with torch.no_grad():
+            out_teacher, _ = model_teacher(input, temperature=args.t_last, inference=False)
+        
+        kd_loss = F.kl_div(F.log_softmax(output/args.T_kd, dim=1),F.softmax(out_teacher.detach()/args.T_kd, dim=1),
+                                                    reduction='batchmean') * args.T_kd**2
+
+        loss =  loss_act + (1-args.alpha_kd) * loss_cls + args.alpha_kd * kd_loss
+
 
         # FLOPs.update(flops.item(), input.size(0))
         act_rates.update(act_rate.item(), input.size(0))
