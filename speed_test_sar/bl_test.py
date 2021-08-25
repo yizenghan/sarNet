@@ -9,8 +9,17 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
-
+import os
 import torch
+
+cpu_num = 1 # 这里设置成你想运行的CPU个数
+os.environ ['OMP_NUM_THREADS'] = str(cpu_num)
+os.environ ['OPENBLAS_NUM_THREADS'] = str(cpu_num)
+os.environ ['MKL_NUM_THREADS'] = str(cpu_num)
+os.environ ['VECLIB_MAXIMUM_THREADS'] = str(cpu_num)
+os.environ ['NUMEXPR_NUM_THREADS'] = str(cpu_num)
+torch.set_num_threads(cpu_num)
+
 import torch.nn as nn
 from conv_bn_fuse import fuse_module
 # from ._model_urls import model_urls
@@ -223,8 +232,11 @@ def blresnet_model(depth, alpha, beta, num_classes=1000, pretrained=False):
 if __name__ == '__main__':
     # from op_counter import measure_model
     # torch.set_num_threads(1)
+
     import time
     import numpy as np
+    print(torch.get_num_threads())
+    # assert(0==1)
     blres = blresnet_model(depth=50,alpha=1,beta=2)
     # def params_count(model):
     #     return np.sum([p.numel() for p in model.parameters()]).item()
@@ -235,6 +247,7 @@ if __name__ == '__main__':
     # print(cls_ops[-1]/1e9, cls_params[-1]/1e6)
     blres.eval()
     # fuse_module(blres)
+    # assert(0==1)
     x = torch.rand(1,3,224,224)
     t_sim = []
     for i in range(100):

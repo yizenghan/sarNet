@@ -388,16 +388,16 @@ if __name__ == '__main__':
     import numpy as np
 
     model = resnet101(sparse=0.3)
-    checkpoint = torch.load('./checkpoint_best.pth')
+    checkpoint = torch.load('./checkpoint_best.pth', map_location='cpu')
     model.load_state_dict(checkpoint['state_dict'])
     print('loaded checkpoint')
 
     model.eval()
     
-    meta = {'masks': [], 'device': 'cuda', 'gumbel_temp': 1.0, 'gumbel_noise': False, 'epoch': 0}
-    x = torch.rand(1,3,224,224).cuda()
+    meta = {'masks': [], 'device': 'cpu', 'gumbel_temp': 1.0, 'gumbel_noise': False, 'epoch': 0}
+    x = torch.rand(1,3,224,224)
     t_sim = []
-    model = model.cuda()
+    model = model
     for i in range(50):
         t1 = time.time()
         y, meta = model(x, meta)

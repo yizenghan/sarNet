@@ -10,7 +10,18 @@ import argparse
     # from op_counter import measure_model
 import time
 import numpy as np
-torch.set_num_threads(1)
+import os
+from multiprocessing import cpu_count
+cpu_num = cpu_count() # 这里设置成你想运行的CPU个数
+cpu_num = 1
+print(cpu_num)
+# assert(0==1)
+os.environ ['OMP_NUM_THREADS'] = str(cpu_num)
+os.environ ['OPENBLAS_NUM_THREADS'] = str(cpu_num)
+os.environ ['MKL_NUM_THREADS'] = str(cpu_num)
+os.environ ['VECLIB_MAXIMUM_THREADS'] = str(cpu_num)
+os.environ ['NUMEXPR_NUM_THREADS'] = str(cpu_num)
+torch.set_num_threads(cpu_num)
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 args = parser.parse_args()
 args.num_classes = 1000

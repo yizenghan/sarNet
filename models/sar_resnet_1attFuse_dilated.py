@@ -2,7 +2,7 @@ import torch.nn as nn
 # from torch.hub import load_state_dict_from_url
 import torch
 import torch.nn.functional as F
-from .gumbel_softmax import GumbleSoftmax
+from gumbel_softmax import GumbleSoftmax
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
@@ -232,6 +232,7 @@ class Bottleneck(nn.Module):
         self.conv2 = nn.Conv2d(planes // self.expansion, planes // self.expansion, kernel_size=3, 
                                stride=stride, dilation=self.dilation_rate, padding=self.padding_, 
                                bias=False)
+        # print(self.conv2.stride)
         self.bn2 = nn.BatchNorm2d(planes // self.expansion)
         self.conv3 = nn.Conv2d(planes // self.expansion, planes, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes)
@@ -298,7 +299,7 @@ class Bottleneck(nn.Module):
         c_in = c_out
         out = self.conv2(out)
         _,c_out,h,w = out.shape
-        flops += c_in * c_out * h * w * 9 / self.conv2.groups / self.dilation_rate**2
+        flops += c_in * c_out * h * w * 9 / self.conv2.groups 
 
         out = self.bn2(out)
         out = self.relu(out)
@@ -399,8 +400,8 @@ class Bottleneck_refine(nn.Module):
         b,c,h,w = x.shape
         g = mask.shape[1]
         m_h = mask.shape[2]
-        ratio = mask.sum() / mask.numel()
-        # ratio = 0.5
+        # ratio = mask.sum() / mask.numel()
+        ratio = 0.5
         mask1 = mask.clone()
         if g > 1:
             mask1 = mask1.unsqueeze(1).repeat(1,c//g,1,1,1).transpose(1,2).reshape(b,c,m_h,m_h)
@@ -520,7 +521,7 @@ class sarModule(nn.Module):
             )
         self.att_gen = AttentionLayer(channel=out_channels, reduction=16) 
         self.fusion = self._make_layer(block_base, out_channels, out_channels, 1, stride=stride, base_scale=base_scale)
-
+        
     def _make_layer(self, block, inplanes, planes, blocks, stride=1, last_relu=True, base_scale=2):
         downsample = []
         if stride != 1:
@@ -548,6 +549,7 @@ class sarModule(nn.Module):
         _masks = []
         x_refine = x
         for i in range(len(self.base_module)):
+            # print(self.base_module[i].conv2.stride, self.base_module[i].conv2.dilation)
             x_base = self.base_module[i](x_base) if i!=0 else self.base_module[i](x)
             mask = self.mask_gen[i](x_base, temperature=temperature)
             _masks.append(mask)
@@ -767,7 +769,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch SARNet')
     args = parser.parse_args()
     args.num_classes = 1000
-    args.patch_groups = 2
+    args.patch_groups = 4
     args.mask_size = 7
     args.alpha = 2
     args.beta = 1
@@ -778,7 +780,7 @@ if __name__ == "__main__":
 
     with torch.no_grad():
         
-        print(sar_res)
+        # print(sar_res)
         x = torch.rand(1,3,224,224)
         sar_res.eval()
         y0, _masks0 = sar_res(x,inference=False,temperature=1e-8)
