@@ -12,7 +12,7 @@
 import os
 import torch
 
-cpu_num = 1 # 这里设置成你想运行的CPU个数
+cpu_num = 64 # 这里设置成你想运行的CPU个数
 os.environ ['OMP_NUM_THREADS'] = str(cpu_num)
 os.environ ['OPENBLAS_NUM_THREADS'] = str(cpu_num)
 os.environ ['MKL_NUM_THREADS'] = str(cpu_num)
@@ -248,7 +248,7 @@ if __name__ == '__main__':
     blres.eval()
     # fuse_module(blres)
     # assert(0==1)
-    x = torch.rand(1,3,224,224)
+    x = torch.rand(32,3,224,224)
     t_sim = []
     for i in range(100):
         t1 = time.time()
