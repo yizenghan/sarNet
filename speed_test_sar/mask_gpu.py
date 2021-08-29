@@ -10,7 +10,14 @@ import argparse
     # from op_counter import measure_model
 import time
 import numpy as np
-torch.set_num_threads(1)
+import os
+from multiprocessing import cpu_count
+cpu_num = cpu_count() # 这里设置成你想运行的CPU个数
+cpu_num = 1
+print(cpu_num)
+# assert(0==1)
+
+torch.set_num_threads(cpu_num)
 parser = argparse.ArgumentParser(description='PyTorch SARNet')
 args = parser.parse_args()
 args.num_classes = 1000
@@ -281,7 +288,7 @@ class BasicBlock_refine(nn.Module):
 
             out = calc_one_group_basic(x_[:int(n_pixels_per_group[0])].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch),0, self.conv1, self.conv2, c_out_g1,c_out_g2,self.relu)
             # outs.append(out)
-            output = torch.zeros(b,g,mask_size,mask_size,out.shape[1],out.shape[2],out.shape[3]).cuda(0)
+            output = torch.zeros(b,g,mask_size,mask_size,out.shape[1],out.shape[2],out.shape[3],device=x.device)
             # print(output[0,0].shape, mask[0,0].shape, out.shape)
             output[0,0].masked_scatter_(mask[0,0]>0, out)
             # assert(0==1)
@@ -573,7 +580,7 @@ class Bottleneck_refine(nn.Module):
 
             out = calc_one_group(x_[:int(n_pixels_per_group[0])].view(int(num_non_zero[0]), channels_per_group, hw_per_patch, hw_per_patch),0, self.conv1, self.conv2, self.conv3,c_out_g1,c_out_g2,c_out_g3,self.relu)
             # outs.append(out)
-            output = torch.zeros(b,g,mask_size,mask_size,out.shape[1],out.shape[2],out.shape[3]).cuda(0)
+            output = torch.zeros(b,g,mask_size,mask_size,out.shape[1],out.shape[2],out.shape[3],device=x.device)
             # print(output[0,0].shape, mask[0,0].shape, out.shape)
             output[0,0].masked_scatter_(mask[0,0]>0, out)
             # assert(0==1)

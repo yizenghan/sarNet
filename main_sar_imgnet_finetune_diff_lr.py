@@ -14,7 +14,6 @@ import sys
 # current_path = os.path.dirname('obs://d-cheap-net-shanghai/hanyz/sarNet/main_sar.py')
 # sys.path.append(current_path)
 
-import double_checked_models
 import models
 from utils import *
 from optimizer import get_optimizer

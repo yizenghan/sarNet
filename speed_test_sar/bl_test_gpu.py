@@ -222,7 +222,7 @@ def blresnet_model(depth, alpha, beta, num_classes=1000, pretrained=False):
 
 if __name__ == '__main__':
     # from op_counter import measure_model
-    # torch.set_num_threads(1)
+    torch.set_num_threads(1)
     import time
     import numpy as np
     blres = blresnet_model(depth=50,alpha=2,beta=2).cuda(0)

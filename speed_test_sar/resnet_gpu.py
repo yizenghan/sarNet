@@ -509,7 +509,7 @@ def wide_resnet_28x10(args,**kwargs):
     return model
 
 if __name__ == "__main__":
-    # torch.set_num_threads(1)
+    torch.set_num_threads(1)
     import time
     import numpy as np
     import argparse
@@ -517,7 +517,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     args.num_classes = 1000
-    model = resnet50(args).cuda(0)
+    model = resnet34(args).cuda(0)
+    print(params_count(model) / 1e6)
     model.eval()
     x = torch.rand(1,3,224,224).cuda(0)
     t_sim = []
